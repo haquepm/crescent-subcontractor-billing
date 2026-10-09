@@ -4,85 +4,174 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Crescent | Secure Login Test</title>
+  <title>Crescent | Database Connection Test</title>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
   <style>
     * { box-sizing: border-box; }
+
     body {
-      margin: 0; min-height: 100vh; display: grid;
-      place-items: center; padding: 20px;
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 20px;
       font: 15px/1.5 system-ui, Arial, sans-serif;
-      background: #f1f5f9; color: #1e293b;
+      background: #f1f5f9;
+      color: #1e293b;
     }
+
     .card {
-      width: 100%; max-width: 420px; background: white;
-      padding: 28px; border-radius: 16px;
+      width: 100%;
+      max-width: 460px;
+      background: white;
+      padding: 28px;
+      border-radius: 16px;
       border: 1px solid #e2e8f0;
       box-shadow: 0 10px 30px #0f172a12;
     }
-    h1 { margin: 0 0 5px; font-size: 24px; }
-    .muted { color: #64748b; margin: 0 0 22px; }
-    label { display: block; font-weight: 650; margin: 14px 0 5px; }
+
+    h1 { margin: 0 0 5px; font-size: 25px; }
+
+    .muted {
+      color: #64748b;
+      margin: 0 0 22px;
+    }
+
+    label {
+      display: block;
+      font-weight: 650;
+      margin: 14px 0 5px;
+    }
+
     input {
-      width: 100%; padding: 12px; border: 1px solid #cbd5e1;
-      border-radius: 8px; font: inherit;
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font: inherit;
     }
+
     button {
-      width: 100%; padding: 12px; margin-top: 18px;
-      border: 0; border-radius: 8px; background: #2457a7;
-      color: white; font: inherit; font-weight: 700; cursor: pointer;
+      width: 100%;
+      padding: 12px;
+      margin-top: 18px;
+      border: 0;
+      border-radius: 8px;
+      background: #2457a7;
+      color: white;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
     }
-    button:disabled { opacity: .6; cursor: wait; }
-    #message { margin-top: 16px; overflow-wrap: anywhere; }
-    .success { color: #08745e; }
-    .error { color: #b42318; }
-    .session { background: #ecfdf5; padding: 12px; border-radius: 8px; }
+
+    button:disabled {
+      opacity: .6;
+      cursor: wait;
+    }
+
+    #message {
+      margin-top: 18px;
+      padding: 12px;
+      border-radius: 8px;
+      overflow-wrap: anywhere;
+      background: #f8fafc;
+    }
+
+    .success {
+      color: #08745e;
+      background: #ecfdf5 !important;
+    }
+
+    .error {
+      color: #b42318;
+      background: #fef2f2 !important;
+    }
+
+    .secondary {
+      background: #475569;
+    }
+
+    [hidden] { display: none !important; }
   </style>
 </head>
+
 <body>
   <main class="card">
     <h1>CRESCENT</h1>
-    <p class="muted">CONTRACTORS PVT. LTD. · Login connection test</p>
+
+    <p class="muted">
+      CONTRACTORS PVT. LTD.<br>
+      Supabase authentication and database test
+    </p>
 
     <form id="loginForm">
       <label for="email">Work email</label>
-      <input id="email" type="email" autocomplete="username" required>
+      <input
+        id="email"
+        type="email"
+        autocomplete="username"
+        required
+      >
 
       <label for="password">Password</label>
-      <input id="password" type="password"
-             autocomplete="current-password" required>
+      <input
+        id="password"
+        type="password"
+        autocomplete="current-password"
+        required
+      >
 
-      <button id="loginButton" type="submit">Sign in</button>
+      <button id="loginButton" type="submit">Sign in and test</button>
     </form>
 
-    <div id="message" role="status" aria-live="polite"></div>
-    <button id="logoutButton" type="button" hidden>Sign out</button>
+    <div id="message" role="status" aria-live="polite">
+      Initializing connection…
+    </div>
+
+    <button id="retryButton" type="button" hidden>
+      Test database again
+    </button>
+
+    <button id="logoutButton" class="secondary" type="button" hidden>
+      Sign out
+    </button>
   </main>
 
   <script>
-    const SUPABASE_URL = 'https://iqltunrvlosxdxucibef.supabase.co';
+    const SUPABASE_URL =
+      'https://iqltunrvlosxdxucibef.supabase.co';
 
-    // Replace this placeholder with your Supabase publishable/anon key.
-    // Never put the Supabase secret/service_role key in this file.
-    const SUPABASE_PUBLIC_KEY = 'sb_publishable_F6gwvkXDVWv7baPVOcOMmQ_iuB1iNwT';
+    // Keep your existing Supabase publishable/anon key here.
+    // Never use an sb_secret_ or service_role key in browser code.
+    const SUPABASE_PUBLIC_KEY =
+      'sb_publishable_F6gwvkXDVWv7baPVOcOMmQ_iuB1iNwT';
 
     const message = document.getElementById('message');
     const form = document.getElementById('loginForm');
     const loginButton = document.getElementById('loginButton');
     const logoutButton = document.getElementById('logoutButton');
+    const retryButton = document.getElementById('retryButton');
 
     function showMessage(text, type = '') {
       message.className = type;
       message.textContent = text;
     }
 
-    if (
+    if (!window.supabase) {
+      form.hidden = true;
+      showMessage(
+        'Could not load the Supabase library. Check your internet connection and reload.',
+        'error'
+      );
+    } else if (
       SUPABASE_PUBLIC_KEY.includes('PASTE_YOUR_') ||
-      !window.supabase
+      !SUPABASE_PUBLIC_KEY.trim()
     ) {
       form.hidden = true;
       showMessage(
-        'Setup required: add your Supabase publishable/anon key and ensure the Supabase library loads.',
+        'Setup required: enter your Supabase publishable/anon key in the code.',
         'error'
       );
     } else {
@@ -91,25 +180,76 @@
         SUPABASE_PUBLIC_KEY
       );
 
-      async function refreshSession() {
-        const { data, error } = await client.auth.getSession();
+      async function testDatabaseAccess() {
+        retryButton.hidden = true;
+        showMessage('Checking authenticated database access…');
 
-        if (error) {
-          showMessage('Could not check login: ' + error.message, 'error');
-          return;
-        }
+        try {
+          const { data, error } = await client
+            .from('subcontractors')
+            .select('id, name')
+            .limit(5);
 
-        if (data.session) {
-          form.hidden = true;
-          logoutButton.hidden = false;
+          if (error) {
+            showMessage(
+              'Login is active, but database access failed: ' +
+              error.message,
+              'error'
+            );
+            retryButton.hidden = false;
+            return;
+          }
+
           showMessage(
-            'Login successful. Signed in as ' + data.session.user.email,
+            'Database access successful! Subcontractor records returned: ' +
+            data.length +
+            '. The query is limited to five records.',
             'success'
           );
-        } else {
-          form.hidden = false;
-          logoutButton.hidden = true;
-          showMessage('Enter your work email and password to test login.');
+          retryButton.hidden = false;
+        } catch (error) {
+          showMessage(
+            'Database request failed. Check your connection and try again.',
+            'error'
+          );
+          retryButton.hidden = false;
+        }
+      }
+
+      async function refreshSession() {
+        try {
+          const { data, error } = await client.auth.getSession();
+
+          if (error) {
+            showMessage(
+              'Could not check the login session: ' + error.message,
+              'error'
+            );
+            return;
+          }
+
+          if (data.session) {
+            form.hidden = true;
+            logoutButton.hidden = false;
+
+            showMessage(
+              'Signed in as ' + data.session.user.email +
+              '. Preparing database test…',
+              'success'
+            );
+
+            await testDatabaseAccess();
+          } else {
+            form.hidden = false;
+            logoutButton.hidden = true;
+            retryButton.hidden = true;
+            showMessage('Enter your work email and password to sign in.');
+          }
+        } catch (error) {
+          showMessage(
+            'Could not connect to Supabase Authentication.',
+            'error'
+          );
         }
       }
 
@@ -130,63 +270,43 @@
             await refreshSession();
           }
         } catch (error) {
-          showMessage('Connection error. Check your internet connection and configuration.', 'error');
+          showMessage(
+            'Connection error. Check your internet connection and try again.',
+            'error'
+          );
         } finally {
           loginButton.disabled = false;
         }
       });
 
-      logoutButton.addEventListener('click', async () => {
-        const { error } = await client.auth.signOut();
-
-        if (error) {
-          showMessage('Sign-out failed: ' + error.message, 'error');
-        } else {
-          await refreshSession();
-        }
-      });
-
-           async function testDatabaseAccess() {
-        showMessage('Checking database access…');
-
-        const { data, error } = await client
-          .from('subcontractors')
-          .select('id, name')
-          .limit(5);
-
-        if (error) {
-          showMessage(
-            'Login works, but database access failed: ' + error.message,
-            'error'
-          );
-          return;
-        }
-
-        showMessage(
-          'Database access successful. Subcontractor records found: ' +
-          data.length,
-          'success'
-        );
-      }
-
-      async function refreshSession() {
+      retryButton.addEventListener('click', async () => {
         const { data, error } = await client.auth.getSession();
 
-        if (error) {
-          showMessage('Could not check login: ' + error.message, 'error');
+        if (error || !data.session) {
+          await refreshSession();
           return;
         }
 
-        if (data.session) {
-          form.hidden = true;
-          logoutButton.hidden = false;
-          await testDatabaseAccess();
-        } else {
-          form.hidden = false;
-          logoutButton.hidden = true;
-          showMessage('Enter your work email and password to test login.');
+        await testDatabaseAccess();
+      });
+
+      logoutButton.addEventListener('click', async () => {
+        logoutButton.disabled = true;
+
+        try {
+          const { error } = await client.auth.signOut();
+
+          if (error) {
+            showMessage('Sign-out failed: ' + error.message, 'error');
+          } else {
+            await refreshSession();
+          }
+        } catch (error) {
+          showMessage('Could not sign out. Please try again.', 'error');
+        } finally {
+          logoutButton.disabled = false;
         }
-      }
+      });
 
       refreshSession();
     }
