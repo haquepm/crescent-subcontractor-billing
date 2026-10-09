@@ -146,6 +146,48 @@
         }
       });
 
+           async function testDatabaseAccess() {
+        showMessage('Checking database access…');
+
+        const { data, error } = await client
+          .from('subcontractors')
+          .select('id, name')
+          .limit(5);
+
+        if (error) {
+          showMessage(
+            'Login works, but database access failed: ' + error.message,
+            'error'
+          );
+          return;
+        }
+
+        showMessage(
+          'Database access successful. Subcontractor records found: ' +
+          data.length,
+          'success'
+        );
+      }
+
+      async function refreshSession() {
+        const { data, error } = await client.auth.getSession();
+
+        if (error) {
+          showMessage('Could not check login: ' + error.message, 'error');
+          return;
+        }
+
+        if (data.session) {
+          form.hidden = true;
+          logoutButton.hidden = false;
+          await testDatabaseAccess();
+        } else {
+          form.hidden = false;
+          logoutButton.hidden = true;
+          showMessage('Enter your work email and password to test login.');
+        }
+      }
+
       refreshSession();
     }
   </script>
