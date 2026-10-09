@@ -20,7 +20,7 @@ const titles={dashboard:'Dashboard',subs:'Subcontractors',rates:'Rate Master',me
 let sb,user,page='dashboard',D={subs:[],rates:[],measure:[],muster:[],bills:[],items:[],ma:[],la:[]};
 function msg(t,cls='',where='loginMsg'){ $(where).innerHTML=t?`<div class="alert ${cls}">${esc(t)}</div>`:''}
 function openModal(t,html){$('mt').textContent=t;$('mb').innerHTML=html;$('back').classList.add('open')}
-function closeModal(){$('back').classList.remove('open');$('mb').innerHTML=''}
+function closeM(){$('back').classList.remove('open');$('mb').innerHTML=''}
 async function q(p){let {data,error}=await p;if(error)throw error;return data}
 const subName=id=>D.subs.find(s=>s.id===id)?.name||'—',rate=id=>D.rates.find(r=>r.id===id);
 const opts=(arr,val,lab)=>arr.map(x=>`<option value="${esc(x[val])}">${esc(lab(x))}</option>`).join('');
