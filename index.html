@@ -43,10 +43,10 @@ if(page==='measure')v.innerHTML=head('Measurements','Saved quantities available 
 if(page==='muster')v.innerHTML=head('Muster labour','Category-wise headcount only; no individual worker names.',btn('＋ Add muster','musterForm()',true))+tbl(['Date','Subcontractor','Category','Full','Half','Wage/day','OT hours','OT rate','Cost','Status'],D.muster.map(m=>{let a=D.la.find(a=>a.muster_entry_id===m.id),cost=n(m.wage_per_day)*(n(m.full_day_count)+n(m.half_day_count)*.5)+n(m.overtime_hours)*n(m.overtime_rate);return `<tr><td>${dt(m.muster_date)}</td><td>${esc(subName(m.subcontractor_id))}</td><td>${esc(m.labour_category)}</td><td>${n(m.full_day_count)}</td><td>${n(m.half_day_count)}</td><td>${money(m.wage_per_day)}</td><td>${n(m.overtime_hours)}</td><td>${money(m.overtime_rate)}</td><td>${money(cost)}</td><td>${a?'Allocated':'Available'}</td></tr>`}).join(''));
 if(page==='bills')v.innerHTML=head('RA Bills','Draft, review, approve and print bills.',btn('＋ New RA Bill','newBill()',true)+btn('Export register CSV','exportRegister()'))+tbl(['Bill','Subcontractor','Date','Period','Gross','Muster','Retention','Other','Net','Status','Actions'],D.bills.map(b=>{let its=D.items.filter(i=>i.ra_bill_id===b.id),gross=its.reduce((a,i)=>a+n(i.current_quantity)*n(i.rate_snapshot),0),lab=D.la.filter(a=>a.ra_bill_id===b.id).reduce((a,x)=>a+n(x.allocated_amount),0),ret=gross*n(b.retention_percent)/100,net=Math.max(0,gross-lab-ret-n(b.other_deductions));return `<tr><td>${esc(b.bill_number)}</td><td>${esc(subName(b.subcontractor_id))}</td><td>${dt(b.bill_date)}</td><td>${dt(b.period_from)} – ${dt(b.period_to)}</td><td>${money(gross)}</td><td>${money(lab)}</td><td>${money(ret)}</td><td>${money(b.other_deductions)}</td><td><b>${money(net)}</b></td><td>${status(b.status)}</td><td>${btn('View',`viewBill('${b.id}')`)} ${b.status==='draft'?btn('Approve',`approveBill('${b.id}')`,true):''} ${b.status==='draft'?btn('Reject / release',`rejectBill('${b.id}')`):''}</td></tr>`}).join(''))}
 function subForm(id=''){
-let s=D.subs.find(x=>x.id===id)||{name:'',work_description:'',contact_number:'',project_name:PROJECT,contractor_name:'',account_holder:'',account_number:'',bank_name:'',bank_branch:'',ifsc_code:'',active:true};
+let s=D.subs.find(x=>x.id===id)||{name:'',work_description:'',contact_number:'',project_name:'',contractor_name:'',account_holder:'',account_number:'',bank_name:'',bank_branch:'',ifsc_code:'',active:true};
 openModal(id?'Edit subcontractor':'Add subcontractor',`<form id="f" class="grid">
 <div class="span2"><h3>Project and contractor details</h3></div>
-<div><label>Project name *</label><input name="project_name" required value="${esc(s.project_name||PROJECT)}"></div>
+<div><label>Project name *</label><input name="project_name" required value="${esc(s.project_name||'')}"></div>
 <div><label>Subcontractor name *</label><input name="name" required value="${esc(s.name)}"></div>
 <div><label>Contractor name for bill</label><input name="contractor_name" value="${esc(s.contractor_name||'')}"></div>
 <div><label>Nature of work / trade</label><input name="work_description" value="${esc(s.work_description||'')}" placeholder="Steel Work"></div>
@@ -54,9 +54,9 @@ openModal(id?'Edit subcontractor':'Add subcontractor',`<form id="f" class="grid"
 <div class="span2"><h3>Bank account details</h3></div>
 <div><label>Account holder name</label><input name="account_holder" value="${esc(s.account_holder||'')}"></div>
 <div><label>Account number</label><input name="account_number" value="${esc(s.account_number||'')}" inputmode="numeric" autocomplete="off"></div>
-<div><label>Bank name</label><input name="bank_name" value="${esc(s.bank_name||'')}" placeholder="State Bank of India"></div>
-<div><label>Branch</label><input name="bank_branch" value="${esc(s.bank_branch||'')}" placeholder="Valanjambalam"></div>
-<div><label>IFSC code</label><input name="ifsc_code" value="${esc(s.ifsc_code||'')}" maxlength="11" style="text-transform:uppercase" placeholder="SBIN0070898"></div>
+<div><label>Bank name</label><input name="bank_name" value="${esc(s.bank_name||'')}" ></div>
+<div><label>Branch</label><input name="bank_branch" value="${esc(s.bank_branch||'')}" ></div>
+<div><label>IFSC code</label><input name="ifsc_code" value="${esc(s.ifsc_code||'')}" maxlength="11" style="text-transform:uppercase" ></div>
 <div><label>Active status</label><select name="active"><option value="true" ${s.active?'selected':''}>Active</option><option value="false" ${!s.active?'selected':''}>Inactive</option></select></div>
 <div class="span2 end"><button type="button" class="btn" onclick="closeM()">Cancel</button><button class="btn primary">Save subcontractor</button></div>
 </form>`);
