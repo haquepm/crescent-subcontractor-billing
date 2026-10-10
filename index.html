@@ -68,7 +68,7 @@ const opts=(arr,val,lab)=>arr.map(x=>`<option value="${esc(x[val])}">${esc(lab(x
 const btn=(label,fn,primary=false)=>`<button class="btn ${primary?'primary':''}" onclick="${fn}">${label}</button>`;
 const head=(t,s,a='')=>`<div class="head"><div><h1>${t}</h1><div class="muted">${s}</div></div><div class="actions no-print">${a}</div></div>`;
 function tbl(h,rows){return `<div class="tablebox"><table><thead><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${rows||`<tr><td class="empty" colspan="${h.length}">No records found.</td></tr>`}</tbody></table></div>`}
-async function load(){const [projects,profiles,subs,rates,measure,muster,bills,items,ma,la,assignments,mw,mv]=await Promise.all([
+async function load(){const [projects,profiles,subs,rates,measure,muster,bills,items,ma,la,assignments,mw,mv,measureWorkflows,mverifications]=await Promise.all([
 q(sb.from('projects').select('*').order('name')),q(sb.from('user_profiles').select('user_id,display_name,is_admin,is_active').eq('user_id',user.id).maybeSingle()),
 q(sb.from('subcontractors').select('*').order('name')),q(sb.from('rate_items').select('*').order('effective_date',{ascending:false})),
 q(sb.from('measurements').select('*').order('measurement_date',{ascending:false})),q(sb.from('muster_entries').select('*').order('muster_date',{ascending:false})),
