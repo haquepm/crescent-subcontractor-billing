@@ -94,7 +94,16 @@ export default async function handler(req, res) {
       });
     }
     if (action === 'create') {
-      const {email,password,username,display_name,role,project_id} = req.body || {};
+      const {email,password,username,display_name,mobile_number,role,project_id} = req.body || {};
+const cleanMobile = typeof mobile_number === 'string'
+  ? mobile_number.trim()
+  : '';
+
+if (!/^[0-9]{10,15}$/.test(cleanMobile)) {
+  return json(res,400,{
+    error:'Enter a valid mobile number with country code, using 10–15 digits only.'
+  });
+}
       const cleanEmail = typeof email==='string' ? email.trim().toLowerCase() : '';
       const cleanName = typeof display_name==='string' ? display_name.trim() : '';
       const cleanUsername = typeof username==='string' ? username.trim().toLowerCase() : '';
@@ -116,7 +125,14 @@ export default async function handler(req, res) {
       const created = await createRes.json().catch(()=>null);
       if (!createRes.ok || !created?.id) return json(res,createRes.status||502,{error:created?.msg||created?.message||'Could not create authentication account.'});
       try {
-        await rest('user_profiles','POST',{user_id:created.id,username:cleanUsername,display_name:cleanName,is_active:true,is_admin:false},'return=minimal');
+        await rest('user_profiles','POST',{
+  user_id:created.id,
+  username:cleanUsername,
+  display_name:cleanName,
+  mobile_number:cleanMobile,
+  is_active:true,
+  is_admin:false
+},'return=minimal');
         await rest('project_assignments','POST',{project_id,user_id:created.id,role,is_active:true},'return=minimal');
       } catch (e) {
         await fetch(`${baseUrl()}/auth/v1/admin/users/${encodeURIComponent(created.id)}`,{method:'DELETE',headers:{apikey:process.env.SUPABASE_SECRET_KEY,Authorization:`Bearer ${process.env.SUPABASE_SECRET_KEY}`}});
