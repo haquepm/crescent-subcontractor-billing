@@ -84,7 +84,7 @@ export default async function handler(req, res) {
     await requireAdmin(req);
     if (action === 'list') {
       const [profiles, projects, assignments] = await Promise.all([
-        rest('user_profiles?select=user_id,username,display_name,is_admin,is_active,signature_data_url&order=display_name.asc'),
+        rest('user_profiles?select=user_id,username,display_name,mobile_number,is_admin,is_active,signature_data_url&order=display_name.asc'),
         rest('projects?select=id,name,is_active&order=name.asc'),
         rest('project_assignments?select=id,project_id,user_id,role,is_active&order=project_id.asc')
       ]);
@@ -93,6 +93,44 @@ export default async function handler(req, res) {
         projects:projects||[], assignments:assignments||[]
       });
     }
+   if (action === 'update_mobile') {
+  const { user_id, mobile_number } = req.body || {};
+
+  const cleanMobile = typeof mobile_number === 'string'
+    ? mobile_number.trim()
+    : '';
+
+  if (!/^[0-9]{10,15}$/.test(cleanMobile)) {
+    return json(res, 400, {
+      error: 'Enter a valid mobile number with country code, using 10–15 digits only.'
+    });
+  }
+
+  if (!/^[0-9a-f-]{36}$/i.test(String(user_id || ''))) {
+    return json(res, 400, {
+      error: 'Select a valid user.'
+    });
+  }
+
+  const profiles = await rest(
+    `user_profiles?select=user_id,is_admin,is_active&user_id=eq.${encodeURIComponent(user_id)}&limit=1`
+  );
+
+  if (!profiles?.length || profiles[0].is_admin === true) {
+    return json(res, 404, {
+      error: 'User not found or not eligible for mobile number updates.'
+    });
+  }
+
+  await rest(
+    `user_profiles?user_id=eq.${encodeURIComponent(user_id)}`,
+    'PATCH',
+    { mobile_number: cleanMobile },
+    'return=minimal'
+  );
+
+  return json(res, 200, { ok: true });
+}
     if (action === 'create') {
       const {email,password,username,display_name,mobile_number,role,project_id} = req.body || {};
 const cleanMobile = typeof mobile_number === 'string'
