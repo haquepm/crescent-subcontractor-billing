@@ -136,6 +136,33 @@ async function renderAdmin(){
           <div class="span2"><button class="btn primary" type="submit">Save project assignment</button></div><div class="span2" id="adminAssignMsg"></div>
         </form>
       </section>
+      
+<section class="card" style="padding:20px">
+  <h2>Manage project assignments</h2>
+  <p class="muted">
+    Remove a user's access to an individual project without deleting their account or historical records.
+  </p>
+
+  <form id="adminUnassignForm" class="grid">
+    <div>
+      <label>User *</label>
+      ${userSelect()}
+    </div>
+
+    <div>
+      <label>Project *</label>
+      ${projectSelect()}
+    </div>
+
+    <div class="span2">
+      <button class="btn" type="submit">
+        Deactivate project assignment
+      </button>
+    </div>
+
+    <div class="span2" id="adminUnassignMsg"></div>
+  </form>
+</section>
       <section class="card" style="padding:20px"><h2>Upload signature PNG</h2><p class="muted">Use a clear, authorized PNG of the user's signature. It appears on bills only for stages they approved.</p>
         <form id="adminSignatureForm" class="grid">
           <div class="span2"><label>User *</label>${userSelect()}</div>
