@@ -136,6 +136,52 @@ export default async function handler(req, res) {
       else await rest('project_assignments','POST',{project_id,user_id,role,is_active:true},'return=minimal');
       return json(res,200,{ok:true});
     }
+    
+    if (action === 'unassign') {
+      const { user_id, project_id } = req.body || {};
+
+      if (
+        !/^[0-9a-f-]{36}$/i.test(String(user_id || '')) ||
+        !/^[0-9a-f-]{36}$/i.test(String(project_id || ''))
+      ) {
+        return json(res, 400, {
+          error: 'Select a valid user and project.'
+        });
+      }
+
+      const profiles = await rest(
+        `user_profiles?select=user_id,is_active,is_admin&user_id=eq.${encodeURIComponent(user_id)}&limit=1`
+      );
+
+      if (
+        !profiles?.length ||
+        profiles[0].is_active !== true ||
+        profiles[0].is_admin === true
+      ) {
+        return json(res, 400, {
+          error: 'Choose an active non-admin user.'
+        });
+      }
+
+      const assignments = await rest(
+        `project_assignments?select=id,project_id,user_id,is_active&project_id=eq.${encodeURIComponent(project_id)}&user_id=eq.${encodeURIComponent(user_id)}&is_active=eq.true&limit=1`
+      );
+
+      if (!assignments?.length) {
+        return json(res, 404, {
+          error: 'No active assignment exists for this user and project.'
+        });
+      }
+
+      await rest(
+        `project_assignments?id=eq.${encodeURIComponent(assignments[0].id)}`,
+        'PATCH',
+        { is_active: false },
+        'return=minimal'
+      );
+
+      return json(res, 200, { ok: true });
+    }
     if (action === 'signature') {
       const {user_id,data_url} = req.body || {};
       if (!/^[0-9a-f-]{36}$/i.test(String(user_id||''))) return json(res,400,{error:'Select a user.'});
