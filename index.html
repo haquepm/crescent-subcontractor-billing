@@ -178,6 +178,45 @@ async function renderAdmin(){
     const showMsg=(id,text,ok=true)=>{const el=$(id);if(el)el.innerHTML=`<div class="alert ${ok?'':'err'}">${esc(text)}</div>`};
     $('adminCreateForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.currentTarget),button=e.currentTarget.querySelector('button[type=submit]');button.disabled=true;try{await adminApi({action:'create',display_name:f.get('display_name'),username:f.get('username'),email:f.get('email'),password:f.get('password'),role:f.get('role'),project_id:f.get('project_id')});showMsg('adminCreateMsg','User created and assigned successfully.');await renderAdmin()}catch(err){showMsg('adminCreateMsg',err.message,false)}finally{button.disabled=false}};
     $('adminAssignForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.currentTarget),button=e.currentTarget.querySelector('button[type=submit]');button.disabled=true;try{await adminApi({action:'assign',user_id:f.get('user_id'),project_id:f.get('project_id'),role:f.get('role')});showMsg('adminAssignMsg','Project assignment saved.');await renderAdmin()}catch(err){showMsg('adminAssignMsg',err.message,false)}finally{button.disabled=false}};
+   
+$('adminUnassignForm').onsubmit = async e => {
+  e.preventDefault();
+
+  const f = new FormData(e.currentTarget);
+  const button = e.currentTarget.querySelector('button[type=submit]');
+
+  const user_id = f.get('user_id');
+  const project_id = f.get('project_id');
+
+  if (!user_id || !project_id) {
+    showMsg('adminUnassignMsg', 'Select a user and project.', false);
+    return;
+  }
+
+  if (!confirm('Are you sure you want to deactivate this user’s assignment to the selected project?')) {
+    return;
+  }
+
+  button.disabled = true;
+
+  try {
+    await adminApi({
+      action: 'unassign',
+      user_id,
+      project_id
+    });
+
+    showMsg('adminUnassignMsg', 'Project assignment deactivated successfully.');
+    await renderAdmin();
+
+  } catch (err) {
+    showMsg('adminUnassignMsg', err.message, false);
+
+  } finally {
+    button.disabled = false;
+  }
+};
+
     const fileInput=$('adminSignatureForm').elements.signature;
     fileInput.onchange=()=>{const file=fileInput.files?.[0],img=$('signaturePreview');if(!file){img.style.display='none';return}if(file.type!=='image/png'){showMsg('adminSignatureMsg','Please select a PNG file.',false);fileInput.value='';img.style.display='none';return}const reader=new FileReader();reader.onload=()=>{img.src=reader.result;img.style.display='block'};reader.readAsDataURL(file)};
     $('adminSignatureForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.currentTarget),file=f.get('signature'),button=e.currentTarget.querySelector('button[type=submit]');button.disabled=true;try{if(!file||file.type!=='image/png')throw new Error('Select a PNG signature image.');if(file.size>1400000)throw new Error('PNG must be smaller than 1.4 MB.');const dataUrl=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(new Error('Could not read signature image.'));r.readAsDataURL(file)});await adminApi({action:'signature',user_id:f.get('user_id'),data_url:dataUrl});showMsg('adminSignatureMsg','Signature saved successfully.');await renderAdmin()}catch(err){showMsg('adminSignatureMsg',err.message,false)}finally{button.disabled=false}};
