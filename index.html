@@ -123,7 +123,23 @@ async function renderAdmin(){
         <form id="adminCreateForm" class="grid">
           <div><label>Display name *</label><input name="display_name" required maxlength="120"></div>
           <div><label>Username *</label><input name="username" required pattern="[a-z0-9]+([._-][a-z0-9]+)*" maxlength="80" placeholder="e.g. project.manager"></div>
-          <div class="span2"><label>Email *</label><input name="email" type="email" required></div>
+         
+<div>
+  <label>Email *</label>
+  <input name="email" type="email" required>
+</div>
+
+<div>
+  <label>Mobile Number *</label>
+  <input
+    name="mobile_number"
+    type="tel"
+    required
+    pattern="[0-9]{10,15}"
+    maxlength="15"
+    placeholder="919876543210"
+    title="Enter country code followed by mobile number, without + or spaces">
+</div>
           <div class="span2"><label>Temporary password (minimum 12 characters) *</label><input name="password" type="password" minlength="12" required autocomplete="new-password"></div>
           <div><label>Project role *</label>${roleSelect()}</div><div><label>Project *</label>${projectSelect()}</div>
           <div class="span2"><button class="btn primary" type="submit">Create user and assign project</button></div><div class="span2" id="adminCreateMsg"></div>
