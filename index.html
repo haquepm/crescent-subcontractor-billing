@@ -357,9 +357,9 @@ async function bbsImportForm(){
    const cMember=col(h1,'member'),cSets=col(h1,'no of set'),cBars=col(h1,'no of bars'),cDia=col(h1,'dia of bar');
    const cPiece=col(h1,'length in piece');
    const diameterCols=[];for(let c=0;c<h3.length;c++){const m=String(h3[c]||'').match(/(8|10|12|16|20|25|32)\s*mm/i);if(m)diameterCols.push({dia:Number(m[1]),col:c})}
-   const findSummary=(label)=>{for(let r=0;r<rows.length;r++)for(let c=0;c<rows[r].length;c++)if(String(rows[r][c]||'').toLowerCase().replace(/\s+/g,' ').includes(label))return {row:r,col:c,value:rows[r][c+3]??rows[r][c+4]??rows[r][c+1]};return null};
+   const findSummary=(label)=>{for(let r=0;r<rows.length;r++)for(let c=0;c<rows[r].length;c++)if(String(rows[r][c]||'').toLowerCase().replace(/\s+/g,' ').includes(label))return {row:r,col:c,value:rows[r][c+5]??rows[r][c+4]??rows[r][c+1]};return null};
    const summary={total:findSummary('total qty in kg'),previous:findSummary('last week released'),held:findSummary('holded qty'),current:findSummary('this week released qty')};
-   const cellErrors=[],items=[];
+   const cellErrors=[],nonCriticalFormulaErrors=[],items=[];
    for(let ri=findHeader+3;ri<rows.length;ri++){
     const row=rows[ri]||[],member=row[cMember],dia=Number(row[cDia]),bars=Number(row[cBars]),sets=Number(row[cSets]),length=Number(row[cTotal]);
     if(!member||!Number.isFinite(dia)||dia<=0||!Number.isFinite(bars)||bars<=0)continue;
@@ -367,13 +367,14 @@ async function bbsImportForm(){
     if(!Number.isFinite(lengthEach)||lengthEach<=0)continue;
     const cuts=[];for(let c=0;c<6;c++){const v=row[8+c];if(v!==null&&v!==undefined&&v!=='')cuts.push(String.fromCharCode(65+c)+': '+v)}
     const sourceRow=ri+1;const lengthCell=XLSX.utils.encode_cell({r:ri,c:cPiece}),diaCell=XLSX.utils.encode_cell({r:ri,c:cDia});
-    for(const addr of [lengthCell,diaCell]){const ce=ws[addr];if(ce&&ce.f&&((ce.t==='e')||String(ce.v).includes('#REF!')||ce.v===undefined))cellErrors.push(addr)}
+    for(const addr of [lengthCell,diaCell,XLSX.utils.encode_cell({r:ri,c:cBars}),XLSX.utils.encode_cell({r:ri,c:cSets})]){const ce=ws[addr];if(ce&&ce.f&&((ce.t==='e')||String(ce.v).includes('#REF!')||ce.v===undefined))cellErrors.push(addr)}
+    for(let cc=0;cc<rows[ri].length;cc++){if([cPiece,cDia,cBars,cSets].includes(cc))continue;const ce=ws[XLSX.utils.encode_cell({r:ri,c:cc})];if(ce&&(ce.t==='e'||String(ce.v||'').includes('#REF!')))nonCriticalFormulaErrors.push(XLSX.utils.encode_cell({r:ri,c:cc}))}
     const barCount=bars*(Number.isFinite(sets)?sets:1),totalLength=lengthEach*barCount,unitWeight=dia*dia/162;
     items.push({bar_mark:String(member).slice(0,240),bar_diameter_mm:dia,bar_shape:cuts.join(' | ')||null,number_of_bars:barCount,cutting_length_m:lengthEach,total_length_m:totalLength,unit_weight_kg_m:unitWeight,total_weight_kg:totalLength*unitWeight,source_row:sourceRow,source_data:{no_of_sets:sets,no_of_bars:bars,cutting_components:cuts}});
    }
    const val=x=>{const n=Number(x?.value);return Number.isFinite(n)?n:null};
    const total=val(summary.total),prev=val(summary.previous),held=val(summary.held),current=val(summary.current);
-   const warnings=[];if(!items.length)warnings.push('No valid diameter-wise weight rows were detected.');if(total===null)warnings.push('Total quantity (kg) summary was not detected.');if(prev===null)warnings.push('Previous released quantity was not detected.');if(held===null)warnings.push('Held quantity was not detected.');if(current===null)warnings.push('Current release summary was not detected.');if(cellErrors.length)warnings.push('Formula errors or missing cached results in weight/total-length cells: '+cellErrors.slice(0,12).join(', '));
+   const warnings=[];if(!items.length)warnings.push('No valid diameter-wise weight rows were detected.');if(total===null)warnings.push('Total quantity (kg) summary was not detected.');if(prev===null)warnings.push('Previous released quantity was not detected.');if(held===null)warnings.push('Held quantity was not detected.');if(current===null)warnings.push('Current release summary was not detected.');if(cellErrors.length)warnings.push('Formula errors or missing cached results in quantity-driving cells: '+cellErrors.slice(0,12).join(', '));if(nonCriticalFormulaErrors.length)warnings.push('Non-quantity formula errors detected (for example, Remarks/auxiliary cells): '+nonCriticalFormulaErrors.slice(0,8).join(', ')+'. These do not change the extracted weight, but should be corrected in the source workbook.');
    const balance=total!==null&&prev!==null&&held!==null?total-prev-held:null;
    const parserStatus=items.length&&total!==null&&prev!==null&&held!==null&&current!==null&&!cellErrors.length&&current>0&&balance!==null&&current<=balance+0.001?'parsed':'needs_review';
    const headerText=rows.slice(0,findHeader).flat().filter(Boolean).join(' ');
