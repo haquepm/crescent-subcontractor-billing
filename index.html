@@ -329,20 +329,50 @@ function boqItemForm(){
 }
 function packageForm(){
  if(D.profile?.is_admin!==true)return alert('System Admin access is required.');
- const subs=D.subs.filter(x=>x.active),boq=D.boqItems||[];
- if(!subs.length||!boq.length)return alert('Create subcontractors and shared BOQ catalogue items first.');
- openModal('Create subcontractor package',`<form id="packageForm" class="grid">
- <div><label>Subcontractor *</label><select id="pkSub" required>${opts(subs,'id',s=>s.name+' · '+(s.project_name||''))}</select></div>
+ const subs=D.subs.filter(x=>x.active),categories=D.categories||[];
+ if(!subs.length)return alert('Create or activate a subcontractor first.');
+ if(!categories.length)return alert('No active work categories are configured. Add a work category first.');
+ const categoryOpts=opts(categories,'id',c=>c.name);
+ openModal('Create subcontractor package',\`<form id="packageForm" class="grid">
+ <div><label>Subcontractor *</label><select id="pkSub" required>\${opts(subs,'id',s=>s.name+' · '+(s.project_name||''))}</select></div>
  <div><label>Package name *</label><input id="pkName" required placeholder="e.g. Steel & Civil Works Package"></div>
- <div><label>Effective date *</label><input id="pkDate" type="date" value="${today()}" required></div>
+ <div><label>Effective date *</label><input id="pkDate" type="date" value="\${today()}" required></div>
  <div><label>End date (optional)</label><input id="pkEnd" type="date"></div>
- <div class="span2 notice">Add all BOQ line items and negotiated rates below. Save once to create the complete package. Package dates determine which package QS can select.</div>
+ <div class="span2 notice">Enter BOQ descriptions manually for this package. Each line item will be added to the shared BOQ catalogue when you save the package.</div>
  <div class="span2"><div class="actions" style="justify-content:space-between"><b>Package line items</b><button type="button" class="btn" id="pkAdd">+ Add line item</button></div><div id="pkRows"></div></div>
- <div class="span2" id="pkMessage"></div><div class="span2 end"><button type="button" class="btn" onclick="closeM()">Cancel</button><button type="button" class="btn primary" id="pkSave">Create package</button></div></form>`);
+ <div class="span2" id="pkMessage"></div><div class="span2 end"><button type="button" class="btn" onclick="closeM()">Cancel</button><button type="button" class="btn primary" id="pkSave">Create package</button></div></form>\`);
  const $p=id=>document.getElementById(id),rows=$p('pkRows');
- function addLine(){const el=document.createElement('div');el.className='panel pk-row';el.style.margin='10px 0';el.innerHTML='<div class="grid"><div class="span2"><label>BOQ line item *</label><select class="pkBoq" required>'+opts(boq,'id',b=>{const c=(D.categories||[]).find(x=>x.id===b.work_category_id);return (c?.name||'')+' · '+b.work_item+' ('+b.unit+')'})+'</select></div><div><label>Rate (₹) *</label><input class="pkRate" type="number" min="0" step=".0001" required></div><div class="pkDesc muted" style="align-self:end"></div><div class="span2 end"><button type="button" class="btn danger pkRemove">Remove line</button></div></div>';rows.appendChild(el);el.querySelector('.pkRemove').onclick=()=>el.remove();el.querySelector('.pkBoq').onchange=()=>{const b=boq.find(x=>x.id===el.querySelector('.pkBoq').value);el.querySelector('.pkDesc').textContent=b?('Unit: '+b.unit+' · '+b.formula_key):''};el.querySelector('.pkBoq').dispatchEvent(new Event('change'))}
+ function addLine(){
+  const el=document.createElement('div');el.className='panel pk-row';el.style.margin='10px 0';
+  el.innerHTML='<div class="grid"><div><label>Work category *</label><select class="pkCategory" required>'+categoryOpts+'</select></div><div><label>Item code (optional)</label><input class="pkCode" maxlength="80" placeholder="e.g. ST-001"></div><div class="span2"><label>BOQ line item name / description *</label><input class="pkName" required maxlength="240" placeholder="Enter the work item name manually"></div><div><label>Unit *</label><select class="pkUnit" required><option value="m2">m²</option><option value="m3">m³</option><option value="rm">Running metre</option><option value="nos">Nos</option><option value="kg">KG</option><option value="mt">MT</option><option value="sqft">Sq.ft</option><option value="cft">Cu.ft</option><option value="day">Day</option><option value="ls">L.S.</option></select></div><div><label>Measurement method *</label><select class="pkMethod" required><option value="manual">Manual quantity</option><option value="dimensions">Dimensions</option><option value="surface_area">Surface area</option><option value="volume">Volume</option><option value="linear">Linear</option><option value="count">Count</option><option value="bbs">BBS Excel</option></select></div><div><label>Calculation formula *</label><select class="pkFormula" required><option value="manual">Manual quantity</option><option value="area_lh">No. × Length × Height</option><option value="area_lb">No. × Length × Breadth</option><option value="volume_lbh">No. × Length × Breadth × Height</option><option value="length_l">No. × Length</option><option value="count">No. only</option><option value="bbs">BBS import</option></select></div><div><label>Rate (₹) *</label><input class="pkRate" type="number" min="0" step=".0001" required placeholder="0.00"></div><div class="span2 end"><button type="button" class="btn danger pkRemove">Remove line</button></div></div>';
+  rows.appendChild(el);el.querySelector('.pkRemove').onclick=()=>el.remove();
+ }
  $p('pkAdd').onclick=addLine;addLine();
- $p('pkSave').onclick=async e=>{e.preventDefault();const form=$p('packageForm');if(!form.checkValidity()){form.reportValidity();return}const sub=subs.find(x=>x.id===$p('pkSub').value),date=$p('pkDate').value,endDate=$p('pkEnd').value||null,packageName=$p('pkName').value.trim(),lines=[...rows.querySelectorAll('.pk-row')].map(el=>({boq_item_id:el.querySelector('.pkBoq').value,rate:Number(el.querySelector('.pkRate').value)}));const showError=t=>{$p('pkMessage').innerHTML='<div class="alert err">'+esc(t)+'</div>'};if(!sub)return showError('Select a subcontractor.');if(!packageName)return showError('Enter a package name.');if(!date)return showError('Select an effective date.');if(!lines.length||lines.some(x=>!x.boq_item_id||!Number.isFinite(x.rate)||x.rate<0))return showError('Every package line needs a BOQ item and a valid rate (zero is allowed).');if(new Set(lines.map(x=>x.boq_item_id)).size!==lines.length)return showError('A BOQ item can appear only once in a package.');if(endDate&&endDate<date)return showError('End date cannot be before effective date.');const btn=$p('pkSave');btn.disabled=true;btn.textContent='Creating package…';try{await q(sb.rpc('create_subcontractor_package',{p_subcontractor_id:sub.id,p_package_name:packageName,p_effective_date:date,p_end_date:endDate,p_lines:lines}));closeM();try{await refresh();msg('Package created successfully with '+lines.length+' BOQ line items.','ok','mb')}catch(refreshError){alert('Package was created, but the list could not refresh: '+refreshError.message)}}catch(err){btn.disabled=false;btn.textContent='Create package';showError('Package was not created: '+(err.message||String(err)))}};
+ $p('pkSave').onclick=async()=>{
+  const form=$p('packageForm');if(!form.checkValidity()){form.reportValidity();return}
+  const sub=subs.find(x=>x.id===$p('pkSub').value),date=$p('pkDate').value,endDate=$p('pkEnd').value||null,packageName=$p('pkName').value.trim();
+  const entries=[...rows.querySelectorAll('.pk-row')].map(el=>({category_id:el.querySelector('.pkCategory').value,item_code:el.querySelector('.pkCode').value.trim()||null,work_item:el.querySelector('.pkName').value.trim(),unit:el.querySelector('.pkUnit').value,measurement_method:el.querySelector('.pkMethod').value,formula_key:el.querySelector('.pkFormula').value,rate:Number(el.querySelector('.pkRate').value)}));
+  const showError=t=>{$p('pkMessage').innerHTML='<div class="alert err">'+esc(t)+'</div>'};
+  if(!sub)return showError('Select a subcontractor.');
+  if(!packageName)return showError('Enter a package name.');
+  if(!date)return showError('Select an effective date.');
+  if(!entries.length||entries.some(x=>!x.work_item||!Number.isFinite(x.rate)||x.rate<0))return showError('Enter an item name and valid rate for every line.');
+  if(endDate&&endDate<date)return showError('End date cannot be before effective date.');
+  const btn=$p('pkSave');btn.disabled=true;btn.textContent='Creating package…';
+  const createdBoq=[];
+  try{
+   const lines=[];
+   for(const item of entries){
+    const boq=await q(sb.from('boq_items').insert({work_category_id:item.category_id,item_code:item.item_code,work_item:item.work_item,unit:item.unit,measurement_method:item.measurement_method,formula_key:item.formula_key,is_active:true}).select('id').single());
+    createdBoq.push(boq.id);lines.push({boq_item_id:boq.id,rate:item.rate});
+   }
+   await q(sb.rpc('create_subcontractor_package',{p_subcontractor_id:sub.id,p_package_name:packageName,p_effective_date:date,p_end_date:endDate,p_lines:lines}));
+   closeM();try{await refresh();msg('Package created successfully with '+lines.length+' manually entered BOQ line items.','ok','mb')}catch(refreshError){alert('Package was created, but the list could not refresh: '+refreshError.message)}
+  }catch(err){
+   for(const id of createdBoq){try{await sb.from('boq_items').delete().eq('id',id)}catch(cleanupError){console.error('BOQ cleanup failed',cleanupError)}}
+   btn.disabled=false;btn.textContent='Create package';showError('Package was not created: '+(err.message||String(err)));
+  }
+ };
  $p('packageForm').onsubmit=e=>{e.preventDefault();$p('pkSave').click()};
 }
 function packageDateForm(id){if(D.profile?.is_admin!==true)return alert('System Admin access is required.');const p=(D.packages||[]).find(x=>x.id===id);if(!p)return;openModal('Change package effective dates',`<form id="pkDateForm" class="grid"><div class="span2"><b>${esc(p.package_name)}</b><div class="muted">${esc(subName(p.subcontractor_id))}</div></div><div><label>Effective date *</label><input name="effective_date" type="date" required value="${p.effective_date}"></div><div><label>End date</label><input name="end_date" type="date" value="${p.end_date||''}"></div><div class="span2 notice">Existing measurements retain their package reference and recorded rate snapshot. Changing dates affects future package selection.</div><div class="span2 end"><button type="button" class="btn" onclick="closeM()">Cancel</button><button class="btn primary">Save dates</button></div></form>`);$('pkDateForm').onsubmit=async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));f.end_date=f.end_date||null;if(f.end_date&&f.end_date<f.effective_date)return msg('End date cannot be before effective date.','err','mb');try{await q(sb.from('subcontractor_packages').update(f).eq('id',id));const linked=(D.packageItems||[]).filter(x=>x.package_id===id);for(const item of linked){await q(sb.from('subcontractor_rates').update({effective_date:f.effective_date,end_date:f.end_date}).eq('id',item.subcontractor_rate_id))}closeM();await refresh();msg('Package dates and all linked line-item rate dates updated. Existing measurement snapshots remain unchanged.','ok','mb')}catch(err){msg(err.message,'err','mb')}}}
