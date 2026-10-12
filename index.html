@@ -355,7 +355,7 @@ async function bbsImportForm(){
    const h1=rows[findHeader]||[],h2=rows[findHeader+1]||[],h3=rows[findHeader+2]||[];
    const col=(arr,txt)=>arr.findIndex(v=>String(v||'').toLowerCase().includes(txt));
    const cMember=col(h1,'member'),cSets=col(h1,'no of set'),cBars=col(h1,'no of bars'),cDia=col(h1,'dia of bar');
-   const cPiece=col(h1,'length in piece'),cTotal=col(h1,'total length');
+   const cPiece=col(h1,'length in piece');
    const diameterCols=[];for(let c=0;c<h3.length;c++){const m=String(h3[c]||'').match(/(8|10|12|16|20|25|32)\s*mm/i);if(m)diameterCols.push({dia:Number(m[1]),col:c})}
    const findSummary=(label)=>{for(let r=0;r<rows.length;r++)for(let c=0;c<rows[r].length;c++)if(String(rows[r][c]||'').toLowerCase().replace(/\s+/g,' ').includes(label))return {row:r,col:c,value:rows[r][c+3]??rows[r][c+4]??rows[r][c+1]};return null};
    const summary={total:findSummary('total qty in kg'),previous:findSummary('last week released'),held:findSummary('holded qty'),current:findSummary('this week released qty')};
@@ -363,13 +363,13 @@ async function bbsImportForm(){
    for(let ri=findHeader+3;ri<rows.length;ri++){
     const row=rows[ri]||[],member=row[cMember],dia=Number(row[cDia]),bars=Number(row[cBars]),sets=Number(row[cSets]),length=Number(row[cTotal]);
     if(!member||!Number.isFinite(dia)||dia<=0||!Number.isFinite(bars)||bars<=0)continue;
-    const dcol=diameterCols.find(x=>x.dia===dia);const weight=dcol?Number(row[dcol.col]):NaN;
-    if(!Number.isFinite(weight)||weight<=0)continue;
-    const cuts=[];for(let c=0;c<6;c++){const v=row[(col(h2,'a')>=0?col(h2,'a'):8)+c];if(v!==null&&v!==undefined&&v!=='')cuts.push(String.fromCharCode(65+c)+': '+v)}
-    const cells=ws['!ref']?XLSX.utils.decode_range(ws['!ref']):{s:{r:0,c:0},e:{r:0,c:0}};
-    const sourceRow=ri+1;const weightCell=XLSX.utils.encode_cell({r:ri,c:dcol.col}),totalCell=XLSX.utils.encode_cell({r:ri,c:cTotal});
-    for(const addr of [weightCell,totalCell]){const ce=ws[addr];if(ce&&ce.f&&((ce.t==='e')||String(ce.v).includes('#REF!')||ce.v===undefined))cellErrors.push(addr)}
-    items.push({bar_mark:String(member).slice(0,240),bar_diameter_mm:dia,bar_shape:cuts.join(' | ')||null,number_of_bars:bars*(Number.isFinite(sets)?sets:1),cutting_length_m:Number.isFinite(length)?length:null,total_length_m:Number.isFinite(length)?length*bars*(Number.isFinite(sets)?sets:1):null,unit_weight_kg_m:dia*dia/162,total_weight_kg:weight,source_row:sourceRow,source_data:{no_of_sets:sets,no_of_bars:bars,cutting_components:cuts}});
+    const dcol=diameterCols.find(x=>x.dia===dia);const lengthEach=Number(row[cPiece]);
+    if(!Number.isFinite(lengthEach)||lengthEach<=0)continue;
+    const cuts=[];for(let c=0;c<6;c++){const v=row[8+c];if(v!==null&&v!==undefined&&v!=='')cuts.push(String.fromCharCode(65+c)+': '+v)}
+    const sourceRow=ri+1;const lengthCell=XLSX.utils.encode_cell({r:ri,c:cPiece}),diaCell=XLSX.utils.encode_cell({r:ri,c:cDia});
+    for(const addr of [lengthCell,diaCell]){const ce=ws[addr];if(ce&&ce.f&&((ce.t==='e')||String(ce.v).includes('#REF!')||ce.v===undefined))cellErrors.push(addr)}
+    const barCount=bars*(Number.isFinite(sets)?sets:1),totalLength=lengthEach*barCount,unitWeight=dia*dia/162;
+    items.push({bar_mark:String(member).slice(0,240),bar_diameter_mm:dia,bar_shape:cuts.join(' | ')||null,number_of_bars:barCount,cutting_length_m:lengthEach,total_length_m:totalLength,unit_weight_kg_m:unitWeight,total_weight_kg:totalLength*unitWeight,source_row:sourceRow,source_data:{no_of_sets:sets,no_of_bars:bars,cutting_components:cuts}});
    }
    const val=x=>{const n=Number(x?.value);return Number.isFinite(n)?n:null};
    const total=val(summary.total),prev=val(summary.previous),held=val(summary.held),current=val(summary.current);
