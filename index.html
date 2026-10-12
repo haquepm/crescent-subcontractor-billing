@@ -361,7 +361,7 @@ async function bbsImportForm(){
    const summary={total:findSummary('total qty in kg'),previous:findSummary('last week released'),held:findSummary('holded qty'),current:findSummary('this week released qty')};
    const cellErrors=[],nonCriticalFormulaErrors=[],items=[];
    for(let ri=findHeader+3;ri<rows.length;ri++){
-    const row=rows[ri]||[],member=row[cMember],dia=Number(row[cDia]),bars=Number(row[cBars]),sets=Number(row[cSets]),length=Number(row[cTotal]);
+    const row=rows[ri]||[],member=row[cMember],dia=Number(row[cDia]),bars=Number(row[cBars]),sets=Number(row[cSets]);
     if(!member||!Number.isFinite(dia)||dia<=0||!Number.isFinite(bars)||bars<=0)continue;
     const dcol=diameterCols.find(x=>x.dia===dia);const lengthEach=Number(row[cPiece]);
     if(!Number.isFinite(lengthEach)||lengthEach<=0)continue;
