@@ -333,18 +333,18 @@ function packageForm(){
  if(!subs.length)return alert('Create or activate a subcontractor first.');
  if(!categories.length)return alert('No active work categories are configured. Add a work category first.');
  const categoryOpts=opts(categories,'id',c=>c.name);
- openModal('Create subcontractor package',\`<form id="packageForm" class="grid">
- <div><label>Subcontractor *</label><select id="pkSub" required>\${opts(subs,'id',s=>s.name+' · '+(s.project_name||''))}</select></div>
+ openModal('Create subcontractor package',`<form id="packageForm" class="grid">
+ <div><label>Subcontractor *</label><select id="pkSub" required>${opts(subs,'id',s=>s.name+' · '+(s.project_name||''))}</select></div>
  <div><label>Package name *</label><input id="pkName" required placeholder="e.g. Steel & Civil Works Package"></div>
- <div><label>Effective date *</label><input id="pkDate" type="date" value="\${today()}" required></div>
+ <div><label>Effective date *</label><input id="pkDate" type="date" value="${today()}" required></div>
  <div><label>End date (optional)</label><input id="pkEnd" type="date"></div>
  <div class="span2 notice">The following settings apply to every line item in this package. Each line item needs only its name and rate.</div>
- <div><label>Work category *</label><select id="pkCategory" required>\${categoryOpts}</select></div>
+ <div><label>Work category *</label><select id="pkCategory" required>${categoryOpts}</select></div>
  <div><label>Unit *</label><select id="pkUnit" required><option value="m2">m²</option><option value="m3">m³</option><option value="rm">Running metre</option><option value="nos">Nos</option><option value="kg">KG</option><option value="mt">MT</option><option value="sqft">Sq.ft</option><option value="cft">Cu.ft</option><option value="day">Day</option><option value="ls">L.S.</option></select></div>
  <div><label>Measurement method *</label><select id="pkMethod" required><option value="manual">Manual quantity</option><option value="dimensions">Dimensions</option><option value="surface_area">Surface area</option><option value="volume">Volume</option><option value="linear">Linear</option><option value="count">Count</option><option value="bbs">BBS Excel</option></select></div>
  <div><label>Calculation formula *</label><select id="pkFormula" required><option value="manual">Manual quantity</option><option value="area_lh">No. × Length × Height</option><option value="area_lb">No. × Length × Breadth</option><option value="volume_lbh">No. × Length × Breadth × Height</option><option value="length_l">No. × Length</option><option value="count">No. only</option><option value="bbs">BBS import</option></select></div>
  <div class="span2"><div class="actions" style="justify-content:space-between"><b>Package line items</b><button type="button" class="btn" id="pkAdd">+ Add line item</button></div><div id="pkRows"></div></div>
- <div class="span2" id="pkMessage"></div><div class="span2 end"><button type="button" class="btn" onclick="closeM()">Cancel</button><button type="button" class="btn primary" id="pkSave">Create package</button></div></form>\`);
+ <div class="span2" id="pkMessage"></div><div class="span2 end"><button type="button" class="btn" onclick="closeM()">Cancel</button><button type="button" class="btn primary" id="pkSave">Create package</button></div></form>`);
  const $p=id=>document.getElementById(id),rows=$p('pkRows');
  function addLine(){
   const el=document.createElement('div');el.className='panel pk-row';el.style.margin='10px 0';
