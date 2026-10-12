@@ -155,7 +155,7 @@ if(page==='measure'){
    const statusText=w?w.status.replaceAll('_',' '):'legacy — workflow required';
    const canVerify=!!w&&((w.status==='pending_site_engineer'&&canSE)||(w.status==='pending_independent_qs'&&canSenior));
    const actions=[];
-   if(canVerify)actions.push(btn('View Submission',`viewMeasurementSubmission('${JSON.stringify(ids)}')`,true));
+   if(canVerify)actions.push(btn('View Submission',`viewMeasurementSubmission('${ids.join(',')}')`,true));
    // BBS download is restricted to the common Senior QS and shown once per submission.
    const uniqueBbs=[...new Map(allAttachments.filter(a=>a.storage_path).map(a=>[a.original_filename||a.storage_path,a])).values()];
    if(canSenior&&uniqueBbs.length)actions.push(btn('Download BBS',`downloadSubmissionBbs('${uniqueBbs[0].id}')`));
@@ -520,9 +520,10 @@ async function downloadSubmissionBbs(attachmentId){
  catch(e){alert('Could not download BBS: '+e.message)}
 }
 
-function viewMeasurementSubmission(idsJson){
- let ids;try{ids=JSON.parse(idsJson)}catch(e){return alert('Invalid submission reference.')}
- if(!Array.isArray(ids)||!ids.length)return alert('No measurement lines were found in this submission.');
+function viewMeasurementSubmission(idsCsv){
+ // UUIDs contain no commas; use a CSV argument so the inline HTML onclick remains valid.
+ const ids=String(idsCsv||'').split(',').map(id=>id.trim()).filter(Boolean);
+ if(!ids.length)return alert('No measurement lines were found in this submission.');
  const measurements=ids.map(id=>D.measure.find(m=>m.id===id)).filter(Boolean);
  const workflows=ids.map(id=>(D.measureWorkflows||[]).find(w=>w.measurement_id===id)).filter(Boolean);
  if(measurements.length!==ids.length||workflows.length!==ids.length)return alert('Some measurement workflow records are missing. Please refresh and try again.');
