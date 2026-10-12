@@ -230,7 +230,9 @@ async function renderAdmin(){
     </div>
     <section class="card admin-users-card"><div class="admin-card-kicker">STAFF DIRECTORY</div><h2>Users and project assignments</h2>
       ${tbl(['User','Username','Mobile number','Status','Admin','Signature','Project assignments'],users.map(u=>{const as=assignments.filter(a=>a.user_id===u.user_id);const labels=as.map(a=>{const p=projects.find(p=>p.id===a.project_id);return `${p?.name||a.project_id} — ${a.role}${a.is_active?'':' (inactive)'}`});return `<tr><td>${esc(u.display_name||'—')}</td><td>${esc(u.username||'—')}</td><td>${esc(u.mobile_number||'—')}</td><td>${u.is_active?'Active':'Inactive'}</td><td>${u.is_admin?'Yes':'No'}</td><td>${u.has_signature?'Uploaded':'Not uploaded'}</td><td>${labels.map(esc).join('<br>')||'—'}</td></tr>`}).join(''))}
-    </section>`;
+    </section>
+    <section class="card admin-card" id="packageAdminPanel"><div class="admin-card-kicker">SUBCONTRACTOR COMMERCIALS</div><div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap"><div><h2>Subcontractor Packages</h2><p class="muted">Create one approved package with multiple BOQ line items and negotiated rates.</p></div><button type="button" class="btn primary" onclick="packageForm()">＋ Create Package</button></div><div id="packageAdminList"><p class="muted">Loading packages…</p></div></section>`;
+    await renderPackageAdmin();
     const showMsg=(id,text,ok=true)=>{const el=$(id);if(el)el.innerHTML=`<div class="alert ${ok?'':'err'}">${esc(text)}</div>`};
     $('adminCreateForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.currentTarget),button=e.currentTarget.querySelector('button[type=submit]');button.disabled=true;try{await adminApi({action:'create',display_name:f.get('display_name'),username:f.get('username'),email:f.get('email'),mobile_number:f.get('mobile_number'),password:f.get('password'),role:f.get('role'),project_id:f.get('project_id')});showMsg('adminCreateMsg','User created and assigned successfully.');await renderAdmin()}catch(err){showMsg('adminCreateMsg',err.message,false)}finally{button.disabled=false}};
     $('adminAssignForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.currentTarget),button=e.currentTarget.querySelector('button[type=submit]');button.disabled=true;try{await adminApi({action:'assign',user_id:f.get('user_id'),project_id:f.get('project_id'),role:f.get('role')});showMsg('adminAssignMsg','Project assignment saved.');await renderAdmin()}catch(err){showMsg('adminAssignMsg',err.message,false)}finally{button.disabled=false}};
@@ -294,6 +296,86 @@ $('adminUnassignForm').onsubmit = async e => {
     fileInput.onchange=()=>{const file=fileInput.files?.[0],img=$('signaturePreview');if(!file){img.style.display='none';return}if(file.type!=='image/png'){showMsg('adminSignatureMsg','Please select a PNG file.',false);fileInput.value='';img.style.display='none';return}const reader=new FileReader();reader.onload=()=>{img.src=reader.result;img.style.display='block'};reader.readAsDataURL(file)};
     $('adminSignatureForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.currentTarget),file=f.get('signature'),button=e.currentTarget.querySelector('button[type=submit]');button.disabled=true;try{if(!file||file.type!=='image/png')throw new Error('Select a PNG signature image.');if(file.size>1400000)throw new Error('PNG must be smaller than 1.4 MB.');const dataUrl=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(new Error('Could not read signature image.'));r.readAsDataURL(file)});await adminApi({action:'signature',user_id:f.get('user_id'),data_url:dataUrl});showMsg('adminSignatureMsg','Signature saved successfully.');await renderAdmin()}catch(err){showMsg('adminSignatureMsg',err.message,false)}finally{button.disabled=false}};
   }catch(err){v.innerHTML=head('Admin Portal','Manage users, assignments and signatures')+`<div class="alert err">${esc(err.message)}</div>`}
+}
+async function renderPackageAdmin(){
+  const target=$('packageAdminList');if(!target)return;
+  try{
+    const packages=await q(sb.from('subcontractor_packages').select('id,package_name,effective_date,end_date,status,created_at,subcontractor_id,project_id').order('created_at',{ascending:false}));
+    if(!packages.length){target.innerHTML='<div class="empty">No packages created yet. Use Create Package to add the first package.</div>';return}
+    target.innerHTML=tbl(['Package','Subcontractor','Project','Effective date','Status',''],packages.map(p=>{
+      const sub=D.subs.find(x=>x.id===p.subcontractor_id);
+      return '<tr><td><b>'+esc(p.package_name)+'</b></td><td>'+esc(sub?.name||'—')+'</td><td>'+esc(sub?.project_name||D.projects.find(x=>x.id===p.project_id)?.name||'—')+'</td><td>'+dt(p.effective_date)+'</td><td>'+status(p.status)+'</td><td><button type="button" class="btn" onclick="viewPackage(\''+p.id+'\')">View items</button></td></tr>';
+    }).join(''));
+  }catch(err){target.innerHTML='<div class="alert err">Could not load packages: '+esc(err.message)+'</div>'}
+}
+async function viewPackage(id){
+  try{
+    const p=await q(sb.from('subcontractor_packages').select('*').eq('id',id).single());
+    const rows=await q(sb.from('subcontractor_package_items').select('line_number,boq_item_id,subcontractor_rate_id').eq('package_id',id).order('line_number'));
+    const boq=rows.length?await q(sb.from('boq_items').select('id,item_code,work_item,unit').in('id',rows.map(x=>x.boq_item_id))):[];
+    const rates=rows.length?await q(sb.from('subcontractor_rates').select('id,rate,effective_date').in('id',rows.map(x=>x.subcontractor_rate_id))):[];
+    const html=tbl(['Sl','Item code','Work item','Unit','Rate'],rows.map(x=>{const b=boq.find(y=>y.id===x.boq_item_id),r=rates.find(y=>y.id===x.subcontractor_rate_id);return '<tr><td>'+x.line_number+'</td><td>'+esc(b?.item_code||'—')+'</td><td>'+esc(b?.work_item||'—')+'</td><td>'+esc(b?.unit||'—')+'</td><td>'+money(r?.rate)+'</td></tr>'}).join(''))+'<div class="end"><button class="btn" onclick="closeM()">Close</button></div>';
+    openModal('Package · '+p.package_name,html);
+  }catch(err){alert('Could not open package: '+err.message)}
+}
+async function packageForm(){
+  if(D.profile?.is_admin!==true)return alert('System Admin access is required.');
+  const subs=D.subs.filter(x=>x.active&&x.project_id);
+  if(!subs.length)return alert('Create or activate a subcontractor with a project first.');
+  let categories;
+  try{categories=await q(sb.from('work_categories').select('id,name,measurement_method,default_unit').eq('is_active',true).order('display_order'))}
+  catch(err){return alert('Could not load work categories: '+err.message)}
+  if(!categories.length)return alert('No active work categories are available. Please add a work category first.');
+  const subOptions=subs.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.name)+' — '+esc(x.project_name||'')+'</option>').join('');
+  const categoryOptions=categories.map(x=>'<option value="'+esc(x.id)+'" data-method="'+esc(x.measurement_method)+'" data-unit="'+esc(x.default_unit)+'">'+esc(x.name)+'</option>').join('');
+  const formHtml='<form id="packageCreateForm"><div class="grid"><div class="span2"><label>Subcontractor *</label><select id="packageSubcontractor" required>'+subOptions+'</select></div><div><label>Package name *</label><input name="package_name" required maxlength="160" placeholder="e.g. Steel Fixing Package – Phase 1"></div><div><label>Effective date *</label><input name="effective_date" type="date" required value="'+today()+'"></div></div><div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div><h3 style="margin:0">Package line items</h3><p class="muted" style="margin:4px 0">Add every BOQ item and its agreed rate here. Save the complete package once.</p></div><button type="button" class="btn" id="addPackageLine">＋ Add line item</button></div><div id="packageLines"></div></div><div id="packageCreateMsg"></div><div class="end"><button type="button" class="btn" onclick="closeM()">Cancel</button><button type="submit" class="btn primary" id="savePackageBtn">Create Package</button></div></form>';
+  openModal('Create Subcontractor Package',formHtml);
+  const lines=$('packageLines');
+  function renumber(){[...lines.querySelectorAll('.package-line')].forEach((r,i)=>{let h=r.querySelector('h4');if(!h){h=document.createElement('h4');h.style.margin='0 0 8px';r.prepend(h)}h.textContent='Line item '+(i+1)})}
+  function addPackageLine(){
+    const row=document.createElement('div');row.className='panel package-line';row.style.margin='12px 0';
+    row.innerHTML='<div class="grid"><div><label>Work category *</label><select class="pkg-category" required>'+categoryOptions+'</select></div><div><label>Item code</label><input class="pkg-code" maxlength="50" placeholder="Optional BOQ code"></div><div class="span2"><label>Work item / description *</label><input class="pkg-item" required maxlength="240" placeholder="Enter BOQ line item"></div><div><label>Unit *</label><input class="pkg-unit" required maxlength="20"></div><div><label>Measurement method *</label><select class="pkg-method"><option value="manual">Manual</option><option value="bbs">BBS</option><option value="dimensions">Dimensions</option><option value="surface_area">Surface area</option><option value="volume">Volume</option><option value="linear">Linear</option><option value="count">Count</option></select></div><div><label>Agreed rate (₹) *</label><input class="pkg-rate" type="number" min="0" step=".0001" required placeholder="0.00"></div><div class="end"><button type="button" class="btn danger remove-package-line">Remove line</button></div></div>';
+    lines.appendChild(row);
+    const category=row.querySelector('.pkg-category'),unit=row.querySelector('.pkg-unit'),method=row.querySelector('.pkg-method');
+    const sync=()=>{const o=category.selectedOptions[0];unit.value=o?.dataset.unit||'';method.value=o?.dataset.method||'manual'};
+    category.addEventListener('change',sync);sync();
+    row.querySelector('.remove-package-line').onclick=()=>{row.remove();renumber()};renumber();
+  }
+  $('addPackageLine').onclick=addPackageLine;addPackageLine();
+  $('packageCreateForm').onsubmit=async e=>{
+    e.preventDefault();
+    const form=e.currentTarget,button=$('savePackageBtn'),msgBox=$('packageCreateMsg'),sub=subs.find(x=>x.id===$('packageSubcontractor').value);
+    const rows=[...lines.querySelectorAll('.package-line')].map((r,i)=>({line_number:i+1,category_id:r.querySelector('.pkg-category').value,item_code:r.querySelector('.pkg-code').value.trim()||null,work_item:r.querySelector('.pkg-item').value.trim(),unit:r.querySelector('.pkg-unit').value.trim(),measurement_method:r.querySelector('.pkg-method').value,rate:Number(r.querySelector('.pkg-rate').value)}));
+    const showError=t=>{msgBox.innerHTML='<div class="alert err">'+esc(t)+'</div>'};
+    if(!sub)return showError('Select a valid subcontractor.');
+    if(!form.elements.package_name.value.trim())return showError('Enter a package name.');
+    if(!rows.length||rows.some(x=>!x.work_item||!x.unit||!Number.isFinite(x.rate)||x.rate<0))return showError('Complete every line item and enter a valid non-negative rate.');
+    button.disabled=true;button.textContent='Creating package…';msgBox.innerHTML='<div class="alert">Saving package and all line items. Please wait…</div>';
+    let packageId=null,createdLegacy=[],createdRates=[],createdBoq=[];
+    try{
+      const packageRow=await q(sb.from('subcontractor_packages').insert({project_id:sub.project_id,subcontractor_id:sub.id,package_name:form.elements.package_name.value.trim(),effective_date:form.elements.effective_date.value,status:'approved',created_by:user.id}).select('id').single());
+      packageId=packageRow.id;
+      const packageItems=[];
+      for(const line of rows){
+        const boq=await q(sb.from('boq_items').insert({work_category_id:line.category_id,item_code:line.item_code,work_item:line.work_item,unit:line.unit,measurement_method:line.measurement_method,formula_key:'manual',is_active:true}).select('id').single());
+        createdBoq.push(boq.id);
+        const legacy=await q(sb.from('rate_items').insert({subcontractor_id:sub.id,work_item:line.work_item,unit:line.unit,rate:line.rate,effective_date:form.elements.effective_date.value}).select('id').single());
+        createdLegacy.push(legacy.id);
+        const rate=await q(sb.from('subcontractor_rates').insert({subcontractor_id:sub.id,boq_item_id:boq.id,rate:line.rate,effective_date:form.elements.effective_date.value,is_active:true,legacy_rate_item_id:legacy.id}).select('id').single());
+        createdRates.push(rate.id);
+        packageItems.push({package_id:packageId,boq_item_id:boq.id,subcontractor_rate_id:rate.id,line_number:line.line_number});
+      }
+      await q(sb.from('subcontractor_package_items').insert(packageItems));
+      closeM();await refresh();alert('Package created successfully with '+rows.length+' line item(s). It is approved and ready for use.');
+    }catch(err){
+      if(packageId){try{await sb.from('subcontractor_package_items').delete().eq('package_id',packageId)}catch(_){}try{await sb.from('subcontractor_packages').delete().eq('id',packageId)}catch(_){}}
+      for(const id of createdRates){try{await sb.from('subcontractor_rates').delete().eq('id',id)}catch(_){}}
+      for(const id of createdLegacy){try{await sb.from('rate_items').delete().eq('id',id)}catch(_){}}
+      for(const id of createdBoq){try{await sb.from('boq_items').delete().eq('id',id)}catch(_){}}
+      showError('Package creation failed: '+err.message+' No success was reported. Please check the error before retrying.');
+      console.error('Package creation failed',err);
+    }finally{button.disabled=false;button.textContent='Create Package'}
+  };
 }
 function projectForm(){if(!D.profile?.is_admin)return alert('Only a system administrator can create projects.');openModal('Add project',`<form id="projectForm" class="grid"><div class="span2"><label>Project name *</label><input name="name" required maxlength=180 placeholder="e.g. New Commercial Tower"></div><div><label>Status</label><select name="is_active"><option value="true" selected>Active</option><option value="false">Inactive</option></select></div><div class="span2 end"><button type="button" class="btn" onclick="closeM()">Cancel</button><button class="btn primary">Save project</button></div></form>`);$('projectForm').onsubmit=async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));f.name=f.name.trim();f.is_active=f.is_active==='true';if(!f.name)return msg('Enter a project name.','err','mb');try{await q(sb.from('projects').insert(f));closeM();await refresh()}catch(err){msg(err.message,'err','mb')}}}
 function subForm(id=''){
@@ -380,7 +462,7 @@ function exportRegister(){csv('Crescent-RA-Bill-Register.csv',[['Bill','Subcontr
 document.querySelector('.nav').onclick=e=>{let b=e.target.closest('[data-p]');if(b)go(b.dataset.p)};$('close').onclick=closeM;$('back').onclick=e=>{if(e.target===$('back'))closeM()};
 $('loginForm').onsubmit=async e=>{e.preventDefault();$('loginBtn').disabled=true;msg('Signing in…');try{const response=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:$('username').value.trim().toLowerCase(),password:$('password').value})});const result=await response.json().catch(()=>({}));if(!response.ok||!result.session)throw new Error(result.error||'Invalid username or password.');const {data,error}=await sb.auth.setSession({access_token:result.session.access_token,refresh_token:result.session.refresh_token});if(error)throw error;user=data.user;$('loginWrap').classList.add('hidden');$('app').classList.remove('hidden');$('userLabel').textContent=data.user?.email||$('username').value.trim();await refresh()}catch(err){msg('Sign-in failed: '+err.message,'err')}finally{$('loginBtn').disabled=false}};
 $('logout').onclick=async()=>{await sb.auth.signOut();user=null;$('app').classList.add('hidden');$('loginWrap').classList.remove('hidden')};
-Object.assign(window,{projectForm,subForm,rateForm,measureForm,musterForm,verifyMeasurement,verifyMuster,resubmitMuster,newBill,viewBill,verifyRABill,submitRABill,approveBill,rejectBill,exportBillCSV,exportRegister,closeM});
+Object.assign(window,{packageForm,viewPackage,projectForm,subForm,rateForm,measureForm,musterForm,verifyMeasurement,verifyMuster,resubmitMuster,newBill,viewBill,verifyRABill,submitRABill,approveBill,rejectBill,exportBillCSV,exportRegister,closeM});
 async function init(){if(!window.supabase){msg('Supabase client library did not load. Check internet.','err');return}if(PUBLIC_KEY.includes('PASTE_YOUR_')){msg('Replace PUBLIC_KEY with the same publishable key used in login-test.html.','err');return}sb=window.supabase.createClient(URL,PUBLIC_KEY);sb.auth.onAuthStateChange((ev,session)=>{if(session?.user){user=session.user;$('loginWrap').classList.add('hidden');$('app').classList.remove('hidden');$('userLabel').textContent=user.email;refresh()}else{$('app').classList.add('hidden');$('loginWrap').classList.remove('hidden')}});let {data,error}=await sb.auth.getSession();if(error){msg(error.message,'err');return}if(data.session){user=data.session.user;$('loginWrap').classList.add('hidden');$('app').classList.remove('hidden');$('userLabel').textContent=user.email;await refresh()}}
 init();
 })();
