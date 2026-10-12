@@ -356,7 +356,7 @@ async function bbsImportForm(){
    const col=(arr,txt)=>arr.findIndex(v=>String(v||'').toLowerCase().includes(txt));
    const cMember=col(h1,'member'),cSets=col(h1,'no of set'),cBars=col(h1,'no of bars'),cDia=col(h1,'dia of bar');
    const cPiece=col(h1,'length in piece');
-   const diameterCols=[];for(let c=0;c<h3.length;c++){const m=String(h3[c]||'').match(/(8|10|12|16|20|25|32)\s*mm/i);if(m)diameterCols.push({dia:Number(m[1]),col:c})}
+   const diameterHeader=[h1,h2,h3].find(r=>r.some(v=>/^(8|10|12|16|20|25|32)\s*mm$/i.test(String(v||'').trim())))||h2;const diameterCols=[];for(let c=0;c<diameterHeader.length;c++){const m=String(diameterHeader[c]||'').trim().match(/^(8|10|12|16|20|25|32)\s*mm$/i);if(m)diameterCols.push({dia:Number(m[1]),col:c})}
    const findSummary=(label)=>{for(let r=0;r<rows.length;r++)for(let c=0;c<rows[r].length;c++)if(String(rows[r][c]||'').toLowerCase().replace(/\s+/g,' ').includes(label))return {row:r,col:c,value:rows[r][c+5]??rows[r][c+4]??rows[r][c+1]};return null};
    const summary={total:findSummary('total qty in kg'),previous:findSummary('last week released'),held:findSummary('holded qty'),current:findSummary('this week released qty')};
    const cellErrors=[],nonCriticalFormulaErrors=[],items=[];
