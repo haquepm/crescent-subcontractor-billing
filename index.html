@@ -352,7 +352,7 @@ async function bbsImportForm(){
    const ws=wb.Sheets[wsName],rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null});
    const findHeader=rows.findIndex(r=>r.some(v=>String(v||'').toLowerCase().includes('no of bars'))&&r.some(v=>String(v||'').toLowerCase().includes('dia of bar')));
    if(findHeader<0)continue;
-   const h1=rows[findHeader]||[],h2=rows[findHeader+1]||[],h3=rows[findHeader+2]||[];
+   const h1=rows[findHeader]||[],h2=rows[findHeader+1]||[],h3=rows[findHeader+2]||[],unitWeightRow=rows.find(r=>String(r[0]||'').toLowerCase().includes('unit weight'))||[];
    const col=(arr,txt)=>arr.findIndex(v=>String(v||'').toLowerCase().includes(txt));
    const cMember=col(h1,'member'),cSets=col(h1,'no of set'),cBars=col(h1,'no of bars'),cDia=col(h1,'dia of bar');
    const cPiece=col(h1,'length in piece');
@@ -369,7 +369,8 @@ async function bbsImportForm(){
     const sourceRow=ri+1;const lengthCell=XLSX.utils.encode_cell({r:ri,c:cPiece}),diaCell=XLSX.utils.encode_cell({r:ri,c:cDia});
     for(const addr of [lengthCell,diaCell,XLSX.utils.encode_cell({r:ri,c:cBars}),XLSX.utils.encode_cell({r:ri,c:cSets})]){const ce=ws[addr];if(ce&&ce.f&&((ce.t==='e')||String(ce.v).includes('#REF!')||ce.v===undefined))cellErrors.push(addr)}
     for(let cc=0;cc<rows[ri].length;cc++){if([cPiece,cDia,cBars,cSets].includes(cc))continue;const ce=ws[XLSX.utils.encode_cell({r:ri,c:cc})];if(ce&&(ce.t==='e'||String(ce.v||'').includes('#REF!')))nonCriticalFormulaErrors.push(XLSX.utils.encode_cell({r:ri,c:cc}))}
-    const barCount=bars*(Number.isFinite(sets)?sets:1),totalLength=lengthEach*barCount,unitWeight=dia*dia/162;
+    const barCount=bars*(Number.isFinite(sets)?sets:1),totalLength=lengthEach*barCount,unitWeight=dcol?Number(unitWeightRow[dcol.col]):NaN;
+    if(!Number.isFinite(unitWeight)||unitWeight<=0)continue;
     items.push({bar_mark:String(member).slice(0,240),bar_diameter_mm:dia,bar_shape:cuts.join(' | ')||null,number_of_bars:barCount,cutting_length_m:lengthEach,total_length_m:totalLength,unit_weight_kg_m:unitWeight,total_weight_kg:totalLength*unitWeight,source_row:sourceRow,source_data:{no_of_sets:sets,no_of_bars:bars,cutting_components:cuts}});
    }
    const val=x=>{const n=Number(x?.value);return Number.isFinite(n)?n:null};
