@@ -105,7 +105,11 @@ function renderAttendance(){
  const form=$('attendanceForm'), project=form.elements.project_id, date=form.elements.attendance_date;
  function grid(){
   const es=activeEmployeesForProject(project.value,date.value);
-  const rows=es.map(e=>'<tr><td><b>'+esc(e.employee_name)+'</b><div class="muted">'+esc(e.employee_code)+'</div></td><td><select data-e="'+e.id+'" data-k="type"><option value="" selected disabled>Choose attendance</option><option value="full_day">Full day</option><option value="half_day">Half day</option><option value="absent">Absent</option></select></td><td><input data-e="'+e.id+'" data-k="ot" type="number" min="0" step=".25" value="0" style="width:90px"></td><td><input data-e="'+e.id+'" data-k="sun" type="number" min="0" step=".01" value="0" style="width:110px" '+(new Date(date.value+'T12:00:00').getDay()===0?'':'disabled')+'></td><td><input data-e="'+e.id+'" data-k="remarks" placeholder="Optional"></td></tr>').join('');
+  const rows=es.map(e=>{
+   const prev=attendance.find(a=>a.employee_id===e.id&&a.attendance_date===date.value);
+   const selected=v=>prev&&prev.attendance_type===v?'selected':'';
+   return '<tr><td><b>'+esc(e.employee_name)+'</b><div class="muted">'+esc(e.employee_code)+'</div></td><td><select required data-e="'+e.id+'" data-k="type"><option value="" '+(!prev?'selected':'')+' disabled>Choose attendance</option><option value="full_day" '+selected('full_day')+'>Full day</option><option value="half_day" '+selected('half_day')+'>Half day</option><option value="absent" '+selected('absent')+'>Absent</option></select></td><td><input data-e="'+e.id+'" data-k="ot" type="number" min="0" step=".25" value="'+(prev?.overtime_hours||0)+'" style="width:90px"></td><td><input data-e="'+e.id+'" data-k="sun" type="number" min="0" step=".01" value="'+(prev?.sunday_extra||0)+'" style="width:110px" '+(new Date(date.value+'T12:00:00').getDay()===0?'':'disabled')+'></td><td><input data-e="'+e.id+'" data-k="remarks" placeholder="Optional" value="'+esc(prev?.remarks||'')+'"></td></tr>';
+  }).join('');
   $('attendanceGrid').innerHTML='<table><thead><tr><th>Employee</th><th>Attendance</th><th>OT Hours</th><th>Sunday Extra ₹</th><th>Remarks</th></tr></thead><tbody>'+(rows||'<tr><td colspan="5" class="empty">No active employees assigned to this project on this date.</td></tr>')+'</tbody></table>';
  }
  project.onchange=grid;date.onchange=grid;grid();
