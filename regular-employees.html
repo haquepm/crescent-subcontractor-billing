@@ -409,12 +409,29 @@ async function decideDirectorLine(id,decision){
  try{await rpc('decide_regular_employee_muster_director_line',{p_line_id:id,p_decision:decision,p_comments:comments||null});await load();renderPayrollReports();msg('Director decision saved for the employee line.')}
  catch(e){msg(e.message,'error')}
 }
-function renderPayments(){
+async function renderPayments(){
  const eligible=musters.filter(m=>['approved','pending_accounts','partially_paid'].includes(m.status));
  $('view').innerHTML=header('Payment Register','Accounts exports one bank-transfer row per Director-approved employee. Shared bank accounts are repeated on separate employee rows; amounts are never combined.')+
  '<div class="notice">The downloaded Excel file contains exactly these 8 columns, in this order: Transaction Type, Debit Account Number, Transaction Amount, Value Date, Beneficiary Account Number, Beneficiary Name, IFSC Code, Credit Remarks.</div>'+
- eligible.map(m=>'<div class="panel"><b>'+esc(projectName(m.project_id))+'</b> · '+m.period_from+' to '+m.period_to+'<p>Director-approved employee lines ready: '+musterLines.filter(l=>l.muster_id===m.id&&l.director_line_status==='approved'&&l.accounts_payment_status==='ready').length+'</p><button class="btn primary" onclick="downloadEmployeeBankTransfer(\''+m.id+'\')">Generate 8-column Bank Transfer Excel</button></div>').join('')+
- '<h3>Previous transfer batches</h3><div id="transferBatchHistory" class="tablewrap"><p class="empty">Transfer batches are retained in the register after generation.</p></div>';
+ eligible.map(m=>'<div class="panel"><b>'+esc(projectName(m.project_id))+'</b> · '+m.period_from+' to '+m.period_to+'<p>Director-approved employee lines ready: '+musterLines.filter(l=>l.muster_id===m.id&&l.director_line_status==='approved'&&l.accounts_payment_status==='ready').length+'</p><button class="btn primary" onclick="downloadEmployeeBankTransfer(\\''+m.id+'\\')">Generate 8-column Bank Transfer Excel</button></div>').join('')+
+ '<h3>Transfer batch and employee-wise payment tracking</h3><div id="transferBatchHistory" class="tablewrap"><p class="empty">Loading transfer history…</p></div>';
+ try{
+  const {data:batches,error}=await db.from('regular_employee_bank_transfer_batches').select('*').order('created_at',{ascending:false}).limit(100);
+  if(error)throw error;
+  const ids=(batches||[]).map(b=>b.id);
+  let rows=[];
+  if(ids.length){const q=await db.from('regular_employee_bank_transfer_rows').select('*').in('batch_id',ids).order('created_at',{ascending:false});if(q.error)throw q.error;rows=q.data||[];}
+  $('transferBatchHistory').innerHTML=(batches||[]).map(b=>{
+   const batchRows=rows.filter(r=>r.batch_id===b.id);
+   return '<div class="panel"><b>'+esc(b.file_name||'Bank transfer batch')+'</b><div class="muted">Value date: '+b.value_date+' · '+b.row_count+' employee transactions · Total ₹'+Number(b.total_amount).toFixed(2)+'</div><div class="tablewrap"><table><thead><tr><th>Employee</th><th>Amount</th><th>Beneficiary Account</th><th>IFSC</th><th>Status</th><th>UTR / Reference</th><th>Action</th></tr></thead><tbody>'+batchRows.map(r=>'<tr><td>'+esc(r.credit_remarks)+'</td><td>₹'+Number(r.transaction_amount).toFixed(2)+'</td><td>'+esc(r.beneficiary_account_number)+'</td><td>'+esc(r.ifsc_code)+'</td><td>'+esc(r.payment_status||'exported')+'</td><td>'+esc(r.payment_reference||'—')+'</td><td>'+(r.payment_status==='paid'?'—':'<button class="btn primary" onclick="markTransferPaid(\\''+r.id+'\\')">Mark Paid</button>')+'</td></tr>').join('')+'</tbody></table></div></div>';
+  }).join('')||'<p class="empty">No transfer batches generated yet.</p>';
+ }catch(e){$('transferBatchHistory').innerHTML='<p class="empty">'+esc(e.message)+'</p>'}
+}
+async function markTransferPaid(id){
+ const reference=prompt('Enter UTR / bank transaction reference (optional):');
+ if(reference===null)return;
+ try{await rpc('mark_regular_employee_bank_transfer_row_paid',{p_row_id:id,p_payment_reference:reference||null});await load();await renderPayments();msg('Employee payment marked as paid.')}
+ catch(e){msg(e.message,'error')}
 }
 async function downloadEmployeeBankTransfer(musterId){
  try{
