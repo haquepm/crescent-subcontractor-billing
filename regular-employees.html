@@ -218,20 +218,20 @@ async function handleBulkEmployeeFile(input){
    const issues=[];
    // Normalize common Excel date exports to ISO (YYYY-MM-DD) before validation.
    const normalizeJoiningDate=value=>{
-    let v=String(value??'').replace(/^\\uFEFF/,'').replace(/[\\u200B-\\u200D\\uFEFF]/g,'').trim();
+    let v=String(value??'').replace(/^\uFEFF/,'').replace(/[\u200B-\u200D\uFEFF]/g,'').trim();
     if(!v)return '';
-    let m=v.match(/^(\\d{4})[-/.](\\d{1,2})[-/.](\\d{1,2})(?:[ T].*)?$/);
+    let m=v.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?:[ T].*)?$/);
     if(m){const y=+m[1],mo=+m[2],d=+m[3],dt=new Date(Date.UTC(y,mo-1,d));return dt.getUTCFullYear()===y&&dt.getUTCMonth()===mo-1&&dt.getUTCDate()===d?String(y).padStart(4,'0')+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0'):'';}
-    m=v.match(/^(\\d{1,2})[-/.](\\d{1,2})[-/.](\\d{4})$/);
+    m=v.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
     if(m){const d=+m[1],mo=+m[2],y=+m[3],dt=new Date(Date.UTC(y,mo-1,d));return dt.getUTCFullYear()===y&&dt.getUTCMonth()===mo-1&&dt.getUTCDate()===d?String(y).padStart(4,'0')+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0'):'';}
     // Excel serial date (days since 1899-12-30).
-    if(/^\\d{5}(?:\\.0+)?$/.test(v)){const dt=new Date(Date.UTC(1899,11,30)+Math.floor(Number(v))*86400000);return dt.toISOString().slice(0,10);}
+    if(/^\d{5}(?:\.0+)?$/.test(v)){const dt=new Date(Date.UTC(1899,11,30)+Math.floor(Number(v))*86400000);return dt.toISOString().slice(0,10);}
     return '';
    };
    rec.joining=normalizeJoiningDate(rec.joining);
    for(const k of ['code','name','work','joining','project','wage','ot'])if(!rec[k])issues.push(aliases[k][0]+' is required');
    if(get('joining')&&!rec.joining)issues.push('Joining Date is not a valid date. Use YYYY-MM-DD (example: 2026-09-01), DD-MM-YYYY, or an Excel date cell.');
-   const numericValue=v=>String(v??'').replace(/[,₹\\s]/g,'').trim();
+   const numericValue=v=>String(v??'').replace(/[,₹\s]/g,'').trim();
    rec.wage=numericValue(rec.wage);rec.ot=numericValue(rec.ot);
    for(const k of ['wage','ot'])if(rec[k]!==''&&(!Number.isFinite(Number(rec[k]))||Number(rec[k])<0))issues.push(aliases[k][0]+' must be a non-negative number');
    const code=rec.code.toLowerCase();if(code&&seenCodes.has(code))issues.push('Duplicate Employee Code in this CSV');if(code&&existing.has(code))issues.push('Employee Code already exists');
