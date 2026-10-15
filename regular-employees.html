@@ -376,6 +376,36 @@ function renderMusterDetail(id){
  $('musterList').innerHTML='<div class="panel"><div class="heading"><div><h2>'+esc(projectName(m.project_id))+' · '+m.period_from+' to '+m.period_to+'</h2><span class="pill">'+esc(m.status)+'</span></div><div class="actions"><button class="btn" onclick="window.print()">Print / Sign</button><button class="btn" onclick="renderMusters()">Back</button></div></div><div class="notice">Seven-day payroll register based on the first sheet of GEOJIT 1.xlsx. Activity code is captured in daily attendance and is not reallocated here.</div><div class="payroll-head"><h2>Site: '+esc(projectName(m.project_id))+'</h2><h3>Month: '+new Date(m.period_from+'T12:00:00').toLocaleString('en-IN',{month:'long',year:'numeric'})+'</h3><p>Period: '+m.period_from+' to '+m.period_to+'</p></div><div class="tablewrap payroll-sheet"><table><thead><tr><th rowspan="2">Sl No</th><th rowspan="2">Labour Name</th><th rowspan="2">Nature of Work</th><th rowspan="2">Wages per Day</th><th rowspan="2">OT Rate</th>'+dayHead+'<th rowspan="2">Total Duty</th><th rowspan="2">Total Wage (Rs.)</th><th rowspan="2">OT (Hr)</th><th rowspan="2">OT (Rs.)</th><th rowspan="2">Extra</th><th rowspan="2">Other</th><th rowspan="2">Advanced Amount (Rs.)</th><th rowspan="2">Payable Amount (Rs.)</th><th rowspan="2">Remarks</th></tr><tr>'+subHead+'</tr></thead><tbody>'+body+'</tbody></table></div><div class="signatures"><div>Prepared / Verified by HR: __________________</div><div>Director Signature: __________________</div><div>Accounts Payment: __________________</div></div></div>';
 }
 
+window.siteVerifyDraft=window.siteVerifyDraft||{};
+function toggleSiteVerificationDraft(id){
+ window.siteVerifyDraft[id]=!window.siteVerifyDraft[id];
+ const row=document.getElementById('site-verify-row-'+id),btn=document.getElementById('site-verify-btn-'+id);
+ if(row)row.style.background=window.siteVerifyDraft[id]?'#e9f8ee':'';
+ if(btn){btn.textContent=window.siteVerifyDraft[id]?'Verified ✓':'Verify';btn.style.background=window.siteVerifyDraft[id]?'#229653':'#a64fbe';btn.style.color='#fff';btn.style.borderColor=window.siteVerifyDraft[id]?'#229653':'#a64fbe';}
+}
+function renderSiteVerificationSheet(id){
+ const m=musters.find(x=>x.id===id);if(!m)return;
+ const lines=musterLines.filter(x=>x.muster_id===id);
+ const days=Array.from({length:7},(_,i)=>{const d=new Date(m.period_from+'T12:00:00');d.setDate(d.getDate()+i);return d.toISOString().slice(0,10)});
+ const dayHeaders=days.map(d=>'<th>'+d.slice(5)+'</th>').join('');
+ const body=lines.map((l,i)=>{
+  const daily=days.map(d=>{const a=attendance.find(x=>x.employee_id===l.employee_id&&x.project_id===m.project_id&&x.attendance_date===d);const p=a?.attendance_type==='full_day'?'Full':a?.attendance_type==='half_day'?'Half':'Absent';return '<td>'+p+'</td>'}).join('');
+  const ots=days.map(d=>{const a=attendance.find(x=>x.employee_id===l.employee_id&&x.project_id===m.project_id&&x.attendance_date===d);return '<td>'+Number(a?.overtime_hours||0).toFixed(2)+'</td>'}).join('');
+  const already=l.site_verification_status==='verified',staged=!!window.siteVerifyDraft[l.id],green=already||staged;
+  return '<tr id="site-verify-row-'+l.id+'" style="'+(green?'background:#e9f8ee':'')+'"><td>'+(i+1)+'</td><td>'+esc(l.employee_name_snapshot)+'</td>'+daily+ots+'<td>'+Number(l.overtime_hours||0).toFixed(2)+'</td><td>₹'+Number(l.sunday_extra||0).toFixed(2)+'</td><td>₹'+Number(l.other_amount||0).toFixed(2)+'</td><td>₹'+Number(l.net_amount||0).toFixed(2)+'</td><td>'+(already?'<span style="color:#229653;font-weight:800">Verified ✓</span>':'<button id="site-verify-btn-'+l.id+'" class="btn" style="background:'+(staged?'#229653':'#a64fbe')+';color:#fff;border-color:'+(staged?'#229653':'#a64fbe')+'" onclick="toggleSiteVerificationDraft(\\''+l.id+'\\')">'+(staged?'Verified ✓':'Verify')+'</button>')+'</td></tr>';
+ }).join('');
+ $('view').innerHTML=header('Site Verification','Review each employee’s seven-day attendance, daily OT, Sunday Extra and Other Extra. Mark each employee verified, then save all selections.')+
+ '<div class="panel"><div class="heading"><div><b>'+esc(projectName(m.project_id))+'</b><div class="muted">'+m.period_from+' to '+m.period_to+' · '+lines.length+' employees</div></div><span class="pill">'+esc(m.status)+'</span></div><div class="tablewrap payroll-sheet"><table><thead><tr><th rowspan="2">Sl</th><th rowspan="2">Employee</th>'+dayHeaders+'<th colspan="7">Overtime hours by day</th><th rowspan="2">Total OT</th><th rowspan="2">Sunday Extra</th><th rowspan="2">Other Extra</th><th rowspan="2">Net Payable</th><th rowspan="2">Verification</th></tr><tr>'+days.map(()=>'<th>Attendance</th>').join('')+days.map(()=>'<th>OT</th>').join('')+'</tr></thead><tbody>'+body+'</tbody></table></div><div class="actions" style="justify-content:space-between;margin-top:20px"><button class="btn" onclick="renderPayrollReports()">Cancel / Back</button><button class="btn primary" onclick="saveSiteVerificationDraft(\\''+id+'\\')">Save Verification</button></div></div>';
+}
+async function saveSiteVerificationDraft(id){
+ const lines=musterLines.filter(l=>l.muster_id===id&&l.site_verification_status!=='verified'&&window.siteVerifyDraft[l.id]);
+ if(!lines.length){msg('Please verify at least one employee before saving.','error');return;}
+ let saved=0;
+ try{
+  for(const l of lines){await rpc('verify_regular_employee_muster_line',{p_line_id:l.id,p_decision:'verified',p_comments:null});saved++;delete window.siteVerifyDraft[l.id];}
+  await load();renderPayrollReports();msg(saved+' employee verification(s) saved. You can now submit the verified sheet to the Project Manager.');
+ }catch(e){await load();renderSiteVerificationSheet(id);msg('Saved '+saved+' of '+lines.length+' verifications. '+e.message,'error');}
+}
 async function verifyPayrollLine(id,decision){
  const comments=prompt(decision==='returned'?'Reason for returning this employee line (required):':'Optional verification comment:');
  if(decision==='returned'&&!comments)return;
@@ -509,15 +539,17 @@ function renderPayrollReports(){
    const verified=lines.filter(l=>l.site_verification_status==='verified').length;
    const processed=lines.filter(l=>l.hr_payment_status==='processed').length;
    const held=lines.filter(l=>l.hr_payment_status==='held').length;
-   let actions='<button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">Open / Print Payroll Sheet</button>';
-   if(['draft','pending_site_verification'].includes(m.status))actions+=' <button class="btn primary" onclick="submitPayrollReport(\''+m.id+'\')">Submit Verified Sheet to PM</button>';
+   let actions='<button class="btn" onclick="renderMusterDetail(\\''+m.id+'\\')">Open / Print Payroll Sheet</button>';
+   if(['draft','pending_site_verification','rejected'].includes(m.status))actions+=' <button class="btn primary" onclick="renderSiteVerificationSheet(\\''+m.id+'\\')">Verify</button>';
+   if(['draft','pending_site_verification','rejected'].includes(m.status))actions+=' <button class="btn primary" onclick="submitPayrollReport(\\''+m.id+'\\')">Submit Verified Sheet to PM</button>';
+   else actions+=' <button class="btn" disabled style="background:#229653;color:#fff;border-color:#229653;opacity:1">Submitted ✓</button>';
    if(m.status==='pending_pm')actions+=' <button class="btn primary" onclick="decidePayrollReport(\''+m.id+'\',\'approved\')">PM Approve Sheet</button> <button class="btn orange" onclick="decidePayrollReport(\''+m.id+'\',\'rejected\')">Return to HR</button>';
    if(['approved_by_pm','approved'].includes(m.status)&&processed>0)actions+=' <button class="btn primary" onclick="submitPayrollToDirector(\''+m.id+'\')">Submit Processed Lines to Director</button>';
    return '<div class="panel"><div class="heading"><div><b>'+esc(projectName(m.project_id))+'</b><div class="muted">'+m.period_from+' to '+m.period_to+' · '+lines.length+' employees</div></div><span class="pill">'+esc(m.status)+'</span></div><div class="muted">Site verified: '+verified+'/'+lines.length+' · HR processed: '+processed+' · Held: '+held+'</div><div class="actions">'+actions+'</div></div>';
   }).join('')||'<p class="empty">No payroll reports match this filter.</p>';
   $('reportRows').innerHTML=ms.flatMap(m=>musterLines.filter(l=>l.muster_id===m.id).map(l=>{
    let action='—';
-   if(['draft','pending_site_verification'].includes(m.status)&&l.site_verification_status==='pending')action='<button class="btn primary" onclick="verifyPayrollLine(\''+l.id+'\',\'verified\')">Verify</button> <button class="btn orange" onclick="verifyPayrollLine(\''+l.id+'\',\'returned\')">Return</button>';
+   if(false)action='';
    else if(['approved_by_pm','approved'].includes(m.status)&&l.hr_payment_status!=='processed'&&l.director_line_status!=='approved')action='<button class="btn primary" onclick="processPayrollLine(\''+l.id+'\',\'process\')">Process</button> <button class="btn orange" onclick="processPayrollLine(\''+l.id+'\',\'hold\')">Hold</button>';
    else if(m.status==='pending_director'&&l.director_line_status==='pending')action='<button class="btn primary" onclick="decideDirectorLine(\''+l.id+'\',\'approved\')">Director Approve</button> <button class="btn orange" onclick="decideDirectorLine(\''+l.id+'\',\'rejected\')">Reject</button>';
    else if(l.hr_payment_status==='held')action='<span class="pill">Held — HR can process later</span>';
