@@ -454,7 +454,7 @@ async function renderPayments(){
  (eligible.map(m=>{
   const ready=musterLines.filter(l=>l.muster_id===m.id&&l.director_line_status==='approved'&&l.accounts_payment_status==='ready').length;
   return '<div class="panel"><div class="heading"><div><b>'+esc(projectName(m.project_id))+'</b><div class="muted">'+m.period_from+' to '+m.period_to+'</div></div></div><p>Employees ready for transfer: '+ready+'</p>'+(ready?'<button class="btn primary" onclick="downloadEmployeeBankTransfer(&quot;'+m.id+'&quot;)">Generate Bank Transfer Sheet</button>':'<span class="pill">No new payments ready</span>')+'</div>';
- }).join(''))||'<p class="empty">No Director-approved payroll reports are ready for bank transfer.</p>'+
+ }).join('')||'<p class="empty">No Director-approved payroll reports are ready for bank transfer.</p>')+
  '<h2>Employee Payment History</h2><div class="tablewrap"><table><thead><tr><th>Employee</th><th>Project</th><th>Payroll Period</th><th>Amount Transferred</th><th>Transfer Date</th><th>Status</th><th>UTR / Reference</th><th>Action</th></tr></thead><tbody>'+
  (visibleRows.map(r=>{
   const m=musters.find(x=>x.id===r.muster_id),l=musterLines.find(x=>x.id===r.muster_line_id),paid=r.payment_status==='paid';
