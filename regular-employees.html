@@ -376,38 +376,90 @@ function renderMusterDetail(id){
  $('musterList').innerHTML='<div class="panel"><div class="heading"><div><h2>'+esc(projectName(m.project_id))+' · '+m.period_from+' to '+m.period_to+'</h2><span class="pill">'+esc(m.status)+'</span></div><div class="actions"><button class="btn" onclick="window.print()">Print / Sign</button><button class="btn" onclick="renderMusters()">Back</button></div></div><div class="notice">Seven-day payroll register based on the first sheet of GEOJIT 1.xlsx. Activity code is captured in daily attendance and is not reallocated here.</div><div class="payroll-head"><h2>Site: '+esc(projectName(m.project_id))+'</h2><h3>Month: '+new Date(m.period_from+'T12:00:00').toLocaleString('en-IN',{month:'long',year:'numeric'})+'</h3><p>Period: '+m.period_from+' to '+m.period_to+'</p></div><div class="tablewrap payroll-sheet"><table><thead><tr><th rowspan="2">Sl No</th><th rowspan="2">Labour Name</th><th rowspan="2">Nature of Work</th><th rowspan="2">Wages per Day</th><th rowspan="2">OT Rate</th>'+dayHead+'<th rowspan="2">Total Duty</th><th rowspan="2">Total Wage (Rs.)</th><th rowspan="2">OT (Hr)</th><th rowspan="2">OT (Rs.)</th><th rowspan="2">Extra</th><th rowspan="2">Other</th><th rowspan="2">Advanced Amount (Rs.)</th><th rowspan="2">Payable Amount (Rs.)</th><th rowspan="2">Remarks</th></tr><tr>'+subHead+'</tr></thead><tbody>'+body+'</tbody></table></div><div class="signatures"><div>Prepared / Verified by HR: __________________</div><div>Director Signature: __________________</div><div>Accounts Payment: __________________</div></div></div>';
 }
 
+async function verifyPayrollLine(id,decision){
+ const comments=prompt(decision==='returned'?'Reason for returning this employee line (required):':'Optional verification comment:');
+ if(decision==='returned'&&!comments)return;
+ try{await rpc('verify_regular_employee_muster_line',{p_line_id:id,p_decision:decision,p_comments:comments||null});await load();renderPayrollReports();msg('Employee line '+(decision==='verified'?'verified':'returned')+'.')}
+ catch(e){msg(e.message,'error')}
+}
 async function submitPayrollReport(id){
- if(!confirm('Submit this HR-verified seven-day payroll report to the Director for signature and approval?'))return;
- try{await rpc('submit_regular_employee_muster',{p_muster_id:id});await load();renderPayrollReports();msg('Payroll report submitted to the Director.')}
+ if(!confirm('Submit this verified seven-day payroll to the Project Manager for whole-sheet approval?'))return;
+ try{await rpc('submit_regular_employee_muster',{p_muster_id:id});await load();renderPayrollReports();msg('Payroll submitted to the Project Manager.')}
  catch(e){msg(e.message,'error')}
 }
 async function decidePayrollReport(id,decision){
- const comments=prompt(decision==='rejected'?'Enter reason for returning this payroll report:':'Optional verification comments:');
+ const comments=prompt(decision==='rejected'?'Enter reason for returning the complete payroll to HR:':'Optional Project Manager comments:');
  if(decision==='rejected'&&!comments)return;
- try{await rpc('decide_regular_employee_muster',{p_muster_id:id,p_decision:decision,p_comments:comments||null});await load();renderPayrollReports();msg('Payroll report '+(decision==='approved'?'verified at this stage.':'returned for correction.'))}
+ try{await rpc('decide_regular_employee_muster_pm',{p_muster_id:id,p_decision:decision,p_comments:comments||null});await load();renderPayrollReports();msg(decision==='approved'?'Project Manager approved the payroll.':'Payroll returned to HR.')}
+ catch(e){msg(e.message,'error')}
+}
+async function processPayrollLine(id,action){
+ const comments=prompt(action==='hold'?'Reason for holding this employee payment (recommended):':'Optional processing note:');
+ try{await rpc('process_regular_employee_muster_line',{p_line_id:id,p_action:action,p_comments:comments||null});await load();renderPayrollReports();msg(action==='process'?'Employee line marked for Director submission.':'Employee line placed on hold.')}
+ catch(e){msg(e.message,'error')}
+}
+async function submitPayrollToDirector(id){
+ if(!confirm('Send only Processed employee lines to the Director? Held lines will remain with HR for later processing.'))return;
+ try{await rpc('submit_regular_employee_muster_to_director',{p_muster_id:id});await load();renderPayrollReports();msg('Processed employee lines submitted to the Director. Held lines remain available to HR.')}
+ catch(e){msg(e.message,'error')}
+}
+async function decideDirectorLine(id,decision){
+ const comments=prompt(decision==='rejected'?'Reason for rejecting this employee line:':'Optional Director comment:');
+ if(decision==='rejected'&&!comments)return;
+ try{await rpc('decide_regular_employee_muster_director_line',{p_line_id:id,p_decision:decision,p_comments:comments||null});await load();renderPayrollReports();msg('Director decision saved for the employee line.')}
  catch(e){msg(e.message,'error')}
 }
 function renderPayments(){
- const approved=musters.filter(m=>m.status==='approved');
- $('view').innerHTML=header('Payment Register','Accounts records payment only after Director signature and approval.')+approved.map(m=>'<div class="panel"><b>'+esc(projectName(m.project_id))+'</b> · '+m.period_from+' to '+m.period_to+'<p>Net payable: ₹'+Number(m.total_net).toFixed(2)+'</p><button class="btn primary" onclick="recordMusterPayment(\''+m.id+'\')">Record payment</button></div>').join('')+'<h3>Paid Musters</h3><div class="tablewrap"><table><thead><tr><th>Payment date</th><th>Project</th><th>Amount</th><th>Method</th><th>Reference</th></tr></thead><tbody>'+musterPayments.map(p=>{const m=musters.find(x=>x.id===p.muster_id);return '<tr><td>'+p.payment_date+'</td><td>'+esc(projectName(m?.project_id||''))+'</td><td>₹'+Number(p.amount).toFixed(2)+'</td><td>'+esc(p.payment_method)+'</td><td>'+esc(p.reference_number||'')+'</td></tr>'}).join('')+'</tbody></table></div>';
+ const eligible=musters.filter(m=>['approved','pending_accounts','partially_paid'].includes(m.status));
+ $('view').innerHTML=header('Payment Register','Accounts exports one bank-transfer row per Director-approved employee. Shared bank accounts are repeated on separate employee rows; amounts are never combined.')+
+ '<div class="notice">The downloaded Excel file contains exactly these 8 columns, in this order: Transaction Type, Debit Account Number, Transaction Amount, Value Date, Beneficiary Account Number, Beneficiary Name, IFSC Code, Credit Remarks.</div>'+
+ eligible.map(m=>'<div class="panel"><b>'+esc(projectName(m.project_id))+'</b> · '+m.period_from+' to '+m.period_to+'<p>Director-approved employee lines ready: '+musterLines.filter(l=>l.muster_id===m.id&&l.director_line_status==='approved'&&l.accounts_payment_status==='ready').length+'</p><button class="btn primary" onclick="downloadEmployeeBankTransfer(\''+m.id+'\')">Generate 8-column Bank Transfer Excel</button></div>').join('')+
+ '<h3>Previous transfer batches</h3><div id="transferBatchHistory" class="tablewrap"><p class="empty">Transfer batches are retained in the register after generation.</p></div>';
+}
+async function downloadEmployeeBankTransfer(musterId){
+ try{
+  const valueDate=new Date().toLocaleDateString('en-CA');
+  const batchId=await rpc('create_regular_employee_bank_transfer_batch',{p_muster_id:musterId,p_value_date:valueDate});
+  const {data,error}=await db.from('regular_employee_bank_transfer_rows').select('*').eq('batch_id',batchId).order('created_at');
+  if(error)throw error;
+  if(!data?.length)throw new Error('The transfer batch contains no employee rows.');
+  const headers=['Transaction Type','Debit Account Number','Transaction Amount','Value Date','Beneficiary Account Number','Beneficiary Name','IFSC Code','Credit Remarks'];
+  const rows=data.map(r=>[r.transaction_type,r.debit_account_number,Number(r.transaction_amount),r.value_date,r.beneficiary_account_number,r.beneficiary_name,r.ifsc_code,r.credit_remarks]);
+  if(headers.length!==8||rows.some(r=>r.length!==8))throw new Error('Transfer export validation failed: the sheet must contain exactly 8 columns.');
+  const ws=XLSX.utils.aoa_to_sheet([headers,...rows]);
+  ws['!cols']=[{wch:17},{wch:22},{wch:18},{wch:14},{wch:24},{wch:28},{wch:16},{wch:30}];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Bank Transfer');
+  XLSX.writeFile(wb,'Crescent_Bank_Transfer_'+valueDate+'.xlsx');
+  await load();renderPayments();msg('Bank transfer Excel generated with exactly 8 columns and '+rows.length+' separate employee transactions.');
+ }catch(e){msg(e.message||String(e),'error')}
 }
 function renderPayrollReports(){
- $('view').innerHTML=header('Payroll Reports','HR reviews the seven-day payroll, submits it to the Director for signature, then Accounts records disbursement.')+
- '<div class="toolbar"><select id="reportProject"><option value="">All projects</option>'+projectOptions()+'</select><select id="reportStatus"><option value="all">All statuses</option><option value="draft">Draft</option><option value="approved">Fully verified</option><option value="paid">Paid</option><option value="pending">Awaiting verification</option><option value="rejected">Returned for correction</option></select><button class="btn primary" id="exportPayroll">Export CSV</button></div><div id="reportSummary" class="stats"></div><h2>Payroll report verification</h2><div id="payrollReportQueue"></div><h2>Employee-wise payroll details</h2><div class="tablewrap"><table><thead><tr><th>Project</th><th>Period</th><th>Employee</th><th>Full days</th><th>Half days</th><th>OT hours</th><th>Other</th><th>Basic</th><th>OT</th><th>Sunday</th><th>Gross</th><th>Advance</th><th>Net</th><th>Report status</th></tr></thead><tbody id="reportRows"></tbody></table></div>';
- function filteredMusters(){const pid=$('reportProject').value,st=$('reportStatus').value;return musters.filter(m=>(!pid||m.project_id===pid)&&(st==='all'||(st==='pending'?m.status.startsWith('pending_'):st==='approved'?m.status==='approved':m.status===st)))}
- function rows(){const ids=new Set(filteredMusters().map(m=>m.id));return musters.filter(m=>ids.has(m.id)).flatMap(m=>musterLines.filter(l=>l.muster_id===m.id).map(l=>({m,l})))}
+ $('view').innerHTML=header('Payroll Reports','Seven-day payroll workflow: Site Engineer verifies each line → Project Manager approves the sheet → HR processes or holds each employee → Director approves processed lines → Accounts exports bank transfers.')+
+ '<div class="toolbar"><select id="reportProject"><option value="">All projects</option>'+projectOptions()+'</select><select id="reportStatus"><option value="all">All statuses</option><option value="draft">Draft / Site verification</option><option value="pending_pm">Pending Project Manager</option><option value="approved_by_pm">PM approved / HR processing</option><option value="pending_director">Pending Director</option><option value="approved">Director completed</option><option value="rejected">Returned</option></select></div><div id="payrollReportQueue"></div><h2>Employee-wise payroll details</h2><div class="tablewrap"><table><thead><tr><th>Project</th><th>Period</th><th>Employee</th><th>Site verification</th><th>HR action</th><th>Director</th><th>Accounts</th><th>Net payable</th></tr></thead><tbody id="reportRows"></tbody></table></div>';
+ function filtered(){const pid=$('reportProject').value,st=$('reportStatus').value;return musters.filter(m=>(!pid||m.project_id===pid)&&(st==='all'||(st==='draft'?['draft','pending_site_verification'].includes(m.status):m.status===st)))}
  function paint(){
-  const ms=filteredMusters(),rs=rows();
-  $('reportSummary').innerHTML='<div class="stat">Payroll reports<strong>'+ms.length+'</strong></div><div class="stat">Gross wages<strong>₹'+ms.reduce((n,m)=>n+Number(m.total_gross),0).toFixed(2)+'</strong></div><div class="stat">Net payable<strong>₹'+ms.reduce((n,m)=>n+Number(m.total_net),0).toFixed(2)+'</strong></div>';
+  const ms=filtered();
   $('payrollReportQueue').innerHTML=ms.map(m=>{
-   const pending=m.status==='pending_director',editable=m.status==='draft'||m.status==='rejected',stage=pending?'Awaiting Director signature':m.status==='approved'?'Director approved':m.status==='paid'?'Paid':m.status==='rejected'?'Returned to HR':'Draft';
-   const actions=editable?'<button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">Review payroll sheet</button> <button class="btn primary" onclick="submitPayrollReport(\''+m.id+'\')">Submit to Director</button>':pending?'<button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">View payroll sheet</button> <button class="btn primary" onclick="decidePayrollReport(\''+m.id+'\',\'approved\')">Director sign / approve</button> <button class="btn orange" onclick="decidePayrollReport(\''+m.id+'\',\'rejected\')">Return to HR</button>':m.status==='approved'?'<button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">View signed payroll</button> <span class="pill">Ready for Accounts</span>':'';
-   return '<div class="panel"><div class="heading"><div><b>'+esc(projectName(m.project_id))+'</b><div class="muted">Payroll period: '+m.period_from+' to '+m.period_to+'</div></div><span class="pill">'+esc(stage)+'</span></div><div class="stats"><div class="stat">Gross<strong>₹'+Number(m.total_gross).toFixed(2)+'</strong></div><div class="stat">Advance deduction<strong>₹'+Number(m.total_advance_deduction).toFixed(2)+'</strong></div><div class="stat">Net payable<strong>₹'+Number(m.total_net).toFixed(2)+'</strong></div></div><div class="actions">'+actions+'</div></div>';
+   const lines=musterLines.filter(l=>l.muster_id===m.id);
+   const verified=lines.filter(l=>l.site_verification_status==='verified').length;
+   const processed=lines.filter(l=>l.hr_payment_status==='processed').length;
+   const held=lines.filter(l=>l.hr_payment_status==='held').length;
+   let actions='<button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">Open / Print Payroll Sheet</button>';
+   if(['draft','pending_site_verification'].includes(m.status))actions+=' <button class="btn primary" onclick="submitPayrollReport(\''+m.id+'\')">Submit Verified Sheet to PM</button>';
+   if(m.status==='pending_pm')actions+=' <button class="btn primary" onclick="decidePayrollReport(\''+m.id+'\',\'approved\')">PM Approve Sheet</button> <button class="btn orange" onclick="decidePayrollReport(\''+m.id+'\',\'rejected\')">Return to HR</button>';
+   if(m.status==='approved_by_pm')actions+=' <button class="btn primary" onclick="submitPayrollToDirector(\''+m.id+'\')">Submit Processed Lines to Director</button>';
+   return '<div class="panel"><div class="heading"><div><b>'+esc(projectName(m.project_id))+'</b><div class="muted">'+m.period_from+' to '+m.period_to+' · '+lines.length+' employees</div></div><span class="pill">'+esc(m.status)+'</span></div><div class="muted">Site verified: '+verified+'/'+lines.length+' · HR processed: '+processed+' · Held: '+held+'</div><div class="actions">'+actions+'</div></div>';
   }).join('')||'<p class="empty">No payroll reports match this filter.</p>';
-  $('reportRows').innerHTML=rs.map(({m,l})=>'<tr><td>'+esc(projectName(m.project_id))+'</td><td>'+m.period_from+' – '+m.period_to+'</td><td>'+esc(l.employee_name_snapshot)+'</td><td>'+l.full_days+'</td><td>'+l.half_days+'</td><td>'+l.overtime_hours+'</td><td>₹'+Number(l.other_amount||0).toFixed(2)+'</td><td>₹'+Number(l.basic_amount).toFixed(2)+'</td><td>₹'+Number(l.overtime_amount).toFixed(2)+'</td><td>₹'+Number(l.sunday_extra).toFixed(2)+'</td><td>₹'+Number(l.gross_amount).toFixed(2)+'</td><td>₹'+Number(l.advance_deduction).toFixed(2)+'</td><td>₹'+Number(l.net_amount).toFixed(2)+'</td><td>'+esc(m.status)+'</td></tr>').join('')||'<tr><td colspan="14" class="empty">No payroll records match this filter.</td></tr>';
+  $('reportRows').innerHTML=ms.flatMap(m=>musterLines.filter(l=>l.muster_id===m.id).map(l=>{
+   let action='—';
+   if(['draft','pending_site_verification'].includes(m.status)&&l.site_verification_status==='pending')action='<button class="btn primary" onclick="verifyPayrollLine(\''+l.id+'\',\'verified\')">Verify</button> <button class="btn orange" onclick="verifyPayrollLine(\''+l.id+'\',\'returned\')">Return</button>';
+   else if(m.status==='approved_by_pm'&&l.hr_payment_status!=='processed')action='<button class="btn primary" onclick="processPayrollLine(\''+l.id+'\',\'process\')">Process</button> <button class="btn orange" onclick="processPayrollLine(\''+l.id+'\',\'hold\')">Hold</button>';
+   else if(m.status==='pending_director'&&l.director_line_status==='pending')action='<button class="btn primary" onclick="decideDirectorLine(\''+l.id+'\',\'approved\')">Director Approve</button> <button class="btn orange" onclick="decideDirectorLine(\''+l.id+'\',\'rejected\')">Reject</button>';
+   else if(l.hr_payment_status==='held')action='<span class="pill">Held — HR can process later</span>';
+   return '<tr><td>'+esc(projectName(m.project_id))+'</td><td>'+m.period_from+' – '+m.period_to+'</td><td>'+esc(l.employee_name_snapshot)+'</td><td>'+esc(l.site_verification_status||'pending')+'</td><td>'+esc(l.hr_payment_status||'pending')+' '+(m.status==='approved_by_pm'?action:'')+'</td><td>'+esc(l.director_line_status||'not_submitted')+(m.status==='pending_director'?'<br>'+action:'')+'</td><td>'+esc(l.accounts_payment_status||'pending')+'</td><td>₹'+Number(l.net_amount).toFixed(2)+'</td></tr>';
+  })).join('')||'<tr><td colspan="8" class="empty">No employee payroll lines.</td></tr>';
  }
  $('reportProject').onchange=paint;$('reportStatus').onchange=paint;paint();
- $('exportPayroll').onclick=()=>{const rs=rows();const data=[['Project','Period From','Period To','Employee Code','Employee','Full Days','Half Days','OT Hours','Other','Basic','OT Amount','Sunday Extra','Gross','Advance Deduction','Net','Report Status'],...rs.map(({m,l})=>[projectName(m.project_id),m.period_from,m.period_to,l.employee_code_snapshot,l.employee_name_snapshot,l.full_days,l.half_days,l.overtime_hours,l.other_amount,l.basic_amount,l.overtime_amount,l.sunday_extra,l.gross_amount,l.advance_deduction,l.net_amount,m.status])];const csv=data.map(row=>row.map(v=>'"'+String(v??'').replaceAll('"','""')+'"').join(',')).join('\\r\\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='regular-payroll-report.csv';a.click();URL.revokeObjectURL(url)}
 }
 async function recordMusterPayment(id){const m=musters.find(x=>x.id===id);const payment_date=prompt('Payment date (YYYY-MM-DD)',dateToday());if(!payment_date)return;const payment_method=prompt('Payment method (Bank transfer / Cash / UPI):','Bank transfer');if(!payment_method)return;const reference_number=prompt('Payment reference / UTR (optional):')||null;try{await rpc('record_regular_employee_muster_payment',{p_muster_id:id,p_payment_date:payment_date,p_amount:Number(m.total_net),p_payment_method:payment_method,p_reference_number:reference_number,p_remarks:null});await load();renderPayments();msg('Payment recorded.')}catch(e){msg(e.message,'error')}}
 
