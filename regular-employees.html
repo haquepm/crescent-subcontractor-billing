@@ -549,10 +549,15 @@ async function handleBankBulkFile(input){
  }catch(e){msg(e.message||String(e),'error')}
  finally{input.value=''}
 }
-function renderPayrollReports(){
+async function renderPayrollReports(){
  $('view').innerHTML=header('Payroll Reports','Seven-day payroll workflow: Site Engineer verifies each line → Project Manager approves the sheet → HR processes or holds each employee → Director approves processed lines → Accounts exports bank transfers.')+
- '<div class="toolbar"><select id="reportProject"><option value="">All projects</option>'+projectOptions()+'</select><select id="reportStatus"><option value="all">All statuses</option><option value="draft">Draft / Site verification</option><option value="pending_pm">Pending Project Manager</option><option value="approved_by_pm">PM approved / HR processing</option><option value="pending_director">Pending Director</option><option value="approved">Director completed</option><option value="rejected">Returned</option></select></div><div id="payrollReportQueue"></div><h2>Employee-wise payroll details</h2><div class="tablewrap"><table><thead><tr><th>Project</th><th>Period</th><th>Employee</th><th>Site verification</th><th>HR action</th><th>Director</th><th>Accounts</th><th>Net payable</th></tr></thead><tbody id="reportRows"></tbody></table></div>';
- function filtered(){const pid=$('reportProject').value,st=$('reportStatus').value;return musters.filter(m=>(!pid||m.project_id===pid)&&(st==='all'||(st==='draft'?['draft','pending_site_verification'].includes(m.status):m.status===st)))}
+ '<div class="toolbar"><select id="reportProject"><option value="">All projects</option>'+projectOptions()+'</select><select id="reportStatus"><option value="all">All statuses</option><option value="draft">Draft / Site verification</option><option value="pending_pm">Pending Project Manager</option><option value="approved_by_pm">PM approved / HR processing</option><option value="pending_director">Pending Director</option><option value="approved">Director completed</option><option value="rejected">Returned</option></select></div><div id="payrollReportQueue"></div><div id="payrollEmployeeDetails"><h2>Employee-wise payroll details</h2><div class="tablewrap"><table><thead><tr><th>Project</th><th>Period</th><th>Employee</th><th>Site verification</th><th>HR action</th><th>Director</th><th>Accounts</th><th>Net payable</th></tr></thead><tbody id="reportRows"></tbody></table></div></div>';
+ const {data:roleRows,error:roleError}=await db.from('project_assignments').select('project_id,role,is_active').eq('user_id',currentUser.id).eq('is_active',true);
+ if(roleError){msg(roleError.message,'error');return;}
+ const pmProjects=new Set((roleRows||[]).filter(x=>String(x.role).toLowerCase()==='project_manager').map(x=>x.project_id));
+ const isPM=pmProjects.size>0;
+ if(isPM){$('payrollEmployeeDetails').style.display='none';$('reportStatus').value='pending_pm';$('reportStatus').disabled=true;}
+ function filtered(){const pid=$('reportProject').value,st=$('reportStatus').value;return musters.filter(m=>(!pid||m.project_id===pid)&&(!isPM||pmProjects.has(m.project_id))&&(st==='all'||(st==='draft'?['draft','pending_site_verification'].includes(m.status):m.status===st)))}
  function paint(){
   const ms=filtered();
   $('payrollReportQueue').innerHTML=ms.map(m=>{
@@ -560,6 +565,13 @@ function renderPayrollReports(){
    const verified=lines.filter(l=>l.site_verification_status==='verified').length;
    const processed=lines.filter(l=>l.hr_payment_status==='processed').length;
    const held=lines.filter(l=>l.hr_payment_status==='held').length;
+   if(isPM){
+    const approved=m.status==='approved_by_pm'||m.status==='approved'||m.status==='pending_director';
+    const actions=m.status==='pending_pm'
+      ?'<button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">Verify</button> <button class="btn primary" onclick="decidePayrollReport(\''+m.id+'\',\'approved\')">Approve</button>'
+      :'<button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">Verify</button> <span class="pill" style="background:#e5f5e8;color:#218447">Approved ✓</span>';
+    return '<div class="panel" style="background:'+(approved?'#eff9f0':'')+';border-color:'+(approved?'#b8dfbf':'')+'"><div class="heading"><div><b>'+esc(projectName(m.project_id))+'</b><div class="muted">'+m.period_from+' to '+m.period_to+' · '+lines.length+' employees</div></div><span class="pill">'+(approved?'Approved':esc(m.status))+'</span></div><div class="muted">Site verified: '+verified+'/'+lines.length+'</div><div class="actions">'+actions+'</div></div>';
+   }
    let actions='<button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">Open / Print Payroll Sheet</button>';
    if(['draft','pending_site_verification','rejected'].includes(m.status))actions+=' <button class="btn primary" onclick="renderSiteVerificationSheet(\''+m.id+'\')">Verify</button>';
    if(['draft','pending_site_verification','rejected'].includes(m.status))actions+=' <button class="btn primary" onclick="submitPayrollReport(\''+m.id+'\')">Submit Verified Sheet to PM</button>';
@@ -568,6 +580,7 @@ function renderPayrollReports(){
    if(['approved_by_pm','approved'].includes(m.status)&&processed>0)actions+=' <button class="btn primary" onclick="submitPayrollToDirector(\''+m.id+'\')">Submit Processed Lines to Director</button>';
    return '<div class="panel"><div class="heading"><div><b>'+esc(projectName(m.project_id))+'</b><div class="muted">'+m.period_from+' to '+m.period_to+' · '+lines.length+' employees</div></div><span class="pill">'+esc(m.status)+'</span></div><div class="muted">Site verified: '+verified+'/'+lines.length+' · HR processed: '+processed+' · Held: '+held+'</div><div class="actions">'+actions+'</div></div>';
   }).join('')||'<p class="empty">No payroll reports match this filter.</p>';
+  if(isPM)return;
   $('reportRows').innerHTML=ms.flatMap(m=>musterLines.filter(l=>l.muster_id===m.id).map(l=>{
    let action='—';
    if(false)action='';
