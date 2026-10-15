@@ -135,9 +135,41 @@ input:focus,select:focus,.field input:focus,.field select:focus{border-color:#b5
  .panel{padding:15px}
  .heading h1{font-size:23px}
 }
+</style>
+<style id="crescent-brand-header-fix">
+:root{--navy:#0b2251;--blue:#0874b9;--orange:#f39200;--bg:#eef4fb;--muted:#58708f;--line:#dce8f4;--ink:#0b2251;--purple:#0874b9;--purple-dark:#075d96}
+body{background:linear-gradient(120deg,#eaf2fc 0%,#f8fbff 55%,#fff4e8 100%);color:#0b2251}
+.top{height:auto;min-height:84px;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:10px 26px;background:#fff;border-bottom:3px solid #f39200;box-shadow:0 4px 18px rgba(11,34,81,.08)}
+.top-brand{display:flex;flex-direction:column;gap:0;min-width:0}
+.crescent-logo{display:block;width:min(350px,48vw);height:auto;max-height:64px}
+.top-caption{margin:1px 0 0 3px;color:#58708f;font-size:9px;font-weight:800;letter-spacing:2px}
+#who{color:#526987}
+.layout{grid-template-columns:248px minmax(0,1fr);min-height:calc(100vh - 84px)}
+.side{background:#0b2251;border-right:4px solid #f39200;padding:22px 14px;position:relative}
+.side:before,.side:after{display:none!important;content:none!important}
+.nav{margin-top:0}
+.nav button{color:#d8e5f4;border-radius:12px;background:transparent}
+.nav button:hover{background:#123b70;color:#fff}
+.nav button.active{background:linear-gradient(110deg,#0874b9,#0b4d83);border-left:4px solid #f39200;border-radius:12px;color:#fff;box-shadow:0 6px 18px #061b3a55}
+main{background:transparent}
+.heading h1{color:#0b2251}
+.stat,.panel,.tablewrap{border-color:#dce8f4;box-shadow:0 7px 22px rgba(11,34,81,.045)}
+.stat{background:#fff!important}
+.stat:nth-child(3n+1){background:#edf6ff!important}
+.stat:nth-child(3n+2){background:#fff7eb!important}
+.stat:nth-child(3n){background:#f2f6fc!important}
+.btn.primary,.btn.primary:hover{background:#0874b9;border-color:#0874b9;color:#fff}
+.btn.orange{background:#f39200;border-color:#f39200}
+.pill{background:#e8f3fc;color:#075d96}
+.attendance-choice.is-selected{border-color:#0874b9;background:#eaf4fd;color:#075d96;box-shadow:0 0 0 1px #0874b922}
+input:focus,select:focus,.field input:focus,.field select:focus{border-color:#0874b9;box-shadow:0 0 0 3px #0874b91b}
+th{background:#edf4fb;color:#375879}
+.notice{background:#fff5e8;color:#80500b;border-color:#ffe0b5}
+#login .btn.primary{background:#0874b9;border-color:#0874b9}
+@media(max-width:800px){.top{padding:10px 14px;min-height:70px}.crescent-logo{width:min(270px,58vw);max-height:50px}.top-caption{font-size:8px;letter-spacing:1.3px}.layout{grid-template-columns:1fr}.side{border-right:0;border-bottom:3px solid #f39200}}
 </style></head><body>
 <div id="login"><div class="brand">CRESCENT <small>CONTRACTORS PVT. LTD.</small></div><h2>Regular Employee Management</h2><p class="muted">Sign in using your existing Crescent portal account.</p><form id="loginForm"><label>Username</label><input id="username" type="text" autocomplete="username" required><label>Password</label><input id="password" type="password" required><button type="submit" class="btn primary" style="width:100%">Sign in</button></form><div id="loginMsg" class="message"></div></div>
-<div id="app" class="shell hidden"><header class="top"><div class="brand">CRESCENT <small>CONTRACTORS PVT. LTD. · REGULAR EMPLOYEE MANAGEMENT</small></div><div><span id="who" class="muted"></span> <button class="btn" id="signout">Sign out</button></div></header><div class="layout"><aside class="side"><nav class="nav"><button class="active" data-page="employees">Employee Directory</button><button data-page="attendance">Weekly Attendance</button><button data-page="advances">Advance Management</button><button data-page="musters">Weekly Muster</button><button data-page="payments">Payment Register</button><button data-page="reports">Payroll Reports</button><button data-page="projects">Project Assignments</button><button data-page="wages">Wage History</button><button data-page="codes">Activity Codes</button><button data-page="hr">HR Access</button></nav></aside><main><div id="message" class="message"></div><section id="view"></section></main></div></div>
+<div id="app" class="shell hidden"><header class="top"><div class="top-brand"><svg class="crescent-logo" viewBox="0 0 760 220" role="img" aria-label="Crescent Contractors Pvt Ltd"><g><path fill="#f39200" d="M20 70h55v130H20z M82 130h43v70H82z M135 20h58v180h-58z M200 95h43v105h-43z M250 112h42v88h-42z"/><path fill="#0874b9" d="M148 18 190 0v200h-55V70z M198 68l45 40v92h-45z M250 85l42 32v83h-42z"/></g><text x="320" y="130" fill="#0874b9" font-family="Arial,sans-serif" font-size="94" font-weight="800" letter-spacing="-3">CRESCENT</text><text x="323" y="188" fill="#f39200" font-family="Arial,sans-serif" font-size="43" font-weight="700" letter-spacing="1">CONTRACTORS PVT. LTD.</text><path d="M20 210H740" stroke="#f39200" stroke-width="5"/></svg><span class="top-caption">REGULAR EMPLOYEE MANAGEMENT</span></div><div><span id="who" class="muted"></span> <button class="btn" id="signout">Sign out</button></div></header><div class="layout"><aside class="side"><nav class="nav"><button class="active" data-page="employees">Employee Directory</button><button data-page="attendance">Weekly Attendance</button><button data-page="advances">Advance Management</button><button data-page="musters">Weekly Muster</button><button data-page="payments">Payment Register</button><button data-page="reports">Payroll Reports</button><button data-page="projects">Project Assignments</button><button data-page="wages">Wage History</button><button data-page="codes">Activity Codes</button><button data-page="hr">HR Access</button></nav></aside><main><div id="message" class="message"></div><section id="view"></section></main></div></div>
 <div id="modal" class="modal"><div class="dialog"><div style="display:flex;justify-content:space-between;align-items:center"><h2 id="modalTitle">Add</h2><button class="btn" id="closeModal">✕</button></div><div id="modalBody"></div></div></div>
 <script>
 const SUPABASE_URL='https://iqltunrvlosxdxucibef.supabase.co';
