@@ -584,7 +584,7 @@ async function renderPayrollReports(){
    let actions='';
    if(isPM&&!isAdmin){
     const approved=['approved_by_pm','approved','pending_director'].includes(m.status);
-    actions=m.status==='pending_pm'?'<button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">Verify</button> <button class="btn primary" onclick="decidePayrollReport(\''+m.id+'\',\'approved\')">Approve</button>':'<button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">Verify</button> <span class="pill" style="background:#e5f5e8;color:#218447">Approved ✓</span>';
+    actions=m.status==='pending_pm'?'<button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">View</button> <button class="btn primary" onclick="decidePayrollReport(\''+m.id+'\',\'approved\')">Approve</button>':'<button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">View</button> <span class="pill" style="background:#e5f5e8;color:#218447">Approved ✓</span>';
     return '<div class="panel" style="background:'+(approved?'#eff9f0':'')+';border-color:'+(approved?'#b8dfbf':'')+'"><div class="heading"><div><b>'+esc(projectName(m.project_id))+'</b><div class="muted">'+m.period_from+' to '+m.period_to+' · '+lines.length+' employees</div></div><span class="pill">'+(approved?'Approved':esc(m.status))+'</span></div><div class="muted">Site verified: '+verified+'/'+lines.length+'</div><div class="actions">'+actions+'</div></div>';
    }
    if(isSite&&!isHR&&!isAdmin&&!isPM){
