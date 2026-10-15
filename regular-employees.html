@@ -423,9 +423,18 @@ async function decidePayrollReport(id,decision){
  try{await rpc('decide_regular_employee_muster_pm',{p_muster_id:id,p_decision:decision,p_comments:comments||null});await load();renderPayrollReports();msg(decision==='approved'?'Project Manager approved the payroll.':'Payroll returned to HR.')}
  catch(e){msg(e.message,'error')}
 }
+async function renderHRProcessingSheet(musterId){
+ const m=musters.find(x=>x.id===musterId);if(!m)return;
+ if(!['approved_by_pm','approved'].includes(m.status)){msg('HR processing is available only after PM approval.','error');return;}
+ const lines=musterLines.filter(l=>l.muster_id===musterId);
+ $('view').innerHTML=header('HR Payroll Processing','Review each employee’s payable amount, then Process or Hold each line.')+
+ '<div class="panel"><div class="heading"><div><b>'+esc(projectName(m.project_id))+'</b><div class="muted">'+m.period_from+' to '+m.period_to+'</div></div><span class="pill" style="background:#e8f5e9;color:#218447">PM Approved</span></div><div class="tablewrap"><table><thead><tr><th>Sl</th><th>Employee Name</th><th>Payable Amount</th><th>Status</th><th>Action</th></tr></thead><tbody>'+
+ lines.map((l,i)=>{const st=l.hr_payment_status||'pending',done=st==='processed',held=st==='held',locked=l.director_line_status==='approved'||l.director_line_status==='pending';return '<tr><td>'+(i+1)+'</td><td>'+esc(l.employee_name_snapshot)+'</td><td>₹'+Number(l.net_amount||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})+'</td><td><span class="pill">'+(done?'Processed':held?'Held':'Pending')+'</span></td><td>'+(locked?'<span class="muted">Already sent to Director</span>':done?'<span style="color:#218447;font-weight:700">Processed ✓</span>': '<button class="btn primary" onclick="processPayrollLine(\''+l.id+'\',\'process\')">Process</button> <button class="btn orange" onclick="processPayrollLine(\''+l.id+'\',\'hold\')">Hold</button>')+'</td></tr>';}).join('')+
+ '</tbody></table></div><div class="actions" style="justify-content:space-between;margin-top:18px"><button class="btn" onclick="renderPayrollReports()">Back to Payroll Reports</button><button class="btn primary" onclick="submitPayrollToDirector(\''+musterId+'\')" '+(lines.some(l=>l.hr_payment_status==='processed'&&l.director_line_status!=='approved'&&l.director_line_status!=='pending')?'':'disabled')+'>Submit Processed Lines to Director</button></div></div>';
+}
 async function processPayrollLine(id,action){
  const comments=prompt(action==='hold'?'Reason for holding this employee payment (recommended):':'Optional processing note:');
- try{await rpc('process_regular_employee_muster_line',{p_line_id:id,p_action:action,p_comments:comments||null});await load();renderPayrollReports();msg(action==='process'?'Employee line marked for Director submission.':'Employee line placed on hold.')}
+ try{await rpc('process_regular_employee_muster_line',{p_line_id:id,p_action:action,p_comments:comments||null});await load();const line=musterLines.find(x=>x.id===id);renderHRProcessingSheet(line?.muster_id);msg(action==='process'?'Employee line marked Processed.':'Employee line placed on Hold.')}
  catch(e){msg(e.message,'error')}
 }
 async function submitPayrollToDirector(id){
@@ -584,7 +593,8 @@ async function renderPayrollReports(){
     actions='<button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">Open / Print Payroll Sheet</button>';
     if(['draft','pending_site_verification','rejected'].includes(m.status))actions+=' <button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">Edit Payroll</button>';
     if(['draft','pending_site_verification','rejected'].includes(m.status))actions+=allVerified?' <span class="pill">Site verification complete</span>':' <span class="pill">Awaiting Site Verification ('+verified+'/'+lines.length+')</span>';
-    if(['approved_by_pm','approved'].includes(m.status)&&processed>0)actions+=' <button class="btn primary" onclick="submitPayrollToDirector(\''+m.id+'\')">Submit Processed Lines to Director</button>';
+    if(['approved_by_pm','approved'].includes(m.status))actions+=' <button class="btn primary" onclick="renderHRProcessingSheet(\''+m.id+'\')">Process Payroll</button>';
+    if(['approved_by_pm','approved'].includes(m.status)&&processed>0)actions+=' <button class="btn" onclick="submitPayrollToDirector(\''+m.id+'\')">Submit Processed Lines to Director</button>';
     if(m.status==='pending_pm')actions+=' <span class="pill">Pending PM approval</span>';
    }else{
     actions='<button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">Open / Print Payroll Sheet</button>';
