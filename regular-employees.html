@@ -484,13 +484,14 @@ async function renderBankDetails(){
  $('view').innerHTML=header('Employee Bank Details','Site Engineers can update bank details for employees assigned to their project. HR/Admin can manage all employee bank details.')+
  '<div class="panel"><div class="toolbar"><button class="btn" onclick="downloadBankTemplate()">Download Excel Template</button><button class="btn primary" onclick="$(\'bankBulkFile\').click()">Bulk Update Bank Details</button><input id="bankBulkFile" type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleBankBulkFile(this)"></div><div class="notice">Template columns: Employee Code, Account Number, Account Holder Name, Bank Name, IFSC Code, Account Type, Change Reason. Shared accounts can be entered for multiple employees; every employee remains a separate payroll beneficiary.</div><div id="bankUploadPreview"></div></div><div class="tablewrap"><table><thead><tr><th>Employee Code</th><th>Employee</th><th>Project</th><th>Account Number</th><th>Beneficiary Name</th><th>Bank</th><th>IFSC</th><th>Action</th></tr></thead><tbody id="bankRows"><tr><td colspan="8" class="empty">Loading bank details…</td></tr></tbody></table></div>';
  try{
-  const [lr,ur,hr]=await Promise.all([
+  const [lr,ur,hr,pr]=await Promise.all([
    db.from('regular_employee_bank_account_links').select('employee_id,bank_account_id,is_primary,effective_from,effective_to,regular_employee_bank_accounts(id,account_number,account_holder_name,bank_name,ifsc_code,account_type)').eq('is_primary',true).is('effective_to',null),
    db.from('project_assignments').select('project_id,role,is_active').eq('user_id',currentUser.id).eq('is_active',true),
-   db.from('regular_employee_hr_users').select('user_id,is_active').eq('user_id',currentUser.id).eq('is_active',true)
+   db.from('regular_employee_hr_users').select('user_id,is_active').eq('user_id',currentUser.id).eq('is_active',true),
+   db.from('user_profiles').select('is_admin').eq('user_id',currentUser.id).maybeSingle()
   ]);
-  if(lr.error)throw lr.error;if(ur.error)throw ur.error;if(hr.error)throw hr.error;
-  const links=lr.data||[],roles=ur.data||[],isAdmin=!!(currentProfile?.is_admin),isHR=(hr.data||[]).length>0;
+  if(lr.error)throw lr.error;if(ur.error)throw ur.error;if(hr.error)throw hr.error;if(pr.error)throw pr.error;
+  const links=lr.data||[],roles=ur.data||[],isAdmin=!!pr.data?.is_admin,isHR=(hr.data||[]).length>0;
   const siteProjects=new Set(roles.filter(x=>String(x.role).toLowerCase()==='site_engineer').map(x=>x.project_id));
   $('bankRows').innerHTML=employees.filter(e=>e.is_active!==false).map(e=>{
    const x=links.find(v=>v.employee_id===e.id),b=x?.regular_employee_bank_accounts||{},a=activeAssignment(e.id),pid=a?.project_id||'',canEdit=isAdmin||isHR||siteProjects.has(pid);
