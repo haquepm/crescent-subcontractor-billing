@@ -583,7 +583,7 @@ async async function renderPayrollReports(){
    }else if(isHR&&!isAdmin){
     actions='<button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">Open / Print Payroll Sheet</button>';
     if(['draft','pending_site_verification','rejected'].includes(m.status))actions+=' <button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">Edit Payroll</button>';
-    if(['draft','pending_site_verification','rejected'].includes(m.status))actions+=allVerified?' <button class="btn primary" onclick="submitPayrollReport(\''+m.id+'\')">Submit Verified Sheet to PM</button>':' <span class="pill">Awaiting Site Verification ('+verified+'/'+lines.length+')</span>';
+    if(['draft','pending_site_verification','rejected'].includes(m.status))actions+=allVerified?' <span class="pill">Site verification complete</span>':' <span class="pill">Awaiting Site Verification ('+verified+'/'+lines.length+')</span>';
     if(['approved_by_pm','approved'].includes(m.status)&&processed>0)actions+=' <button class="btn primary" onclick="submitPayrollToDirector(\''+m.id+'\')">Submit Processed Lines to Director</button>';
     if(m.status==='pending_pm')actions+=' <span class="pill">Pending PM approval</span>';
    }else{
