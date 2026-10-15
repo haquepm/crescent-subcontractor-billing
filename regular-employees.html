@@ -553,7 +553,7 @@ async function handleBankBulkFile(input){
  }catch(e){msg(e.message||String(e),'error')}
  finally{input.value=''}
 }
-async async function renderPayrollReports(){
+async function renderPayrollReports(){
  $('view').innerHTML=header('Payroll Reports','Manage seven-day payroll according to your assigned role.')+
  '<div class="toolbar"><select id="reportProject"><option value="">All projects</option>'+projectOptions()+'</select><select id="reportStatus"><option value="all">All statuses</option><option value="draft">Draft / Site verification</option><option value="pending_pm">Pending Project Manager</option><option value="approved_by_pm">PM approved / HR processing</option><option value="pending_director">Pending Director</option><option value="approved">Director completed</option><option value="rejected">Returned</option></select></div><div id="payrollReportQueue"></div><div id="payrollEmployeeDetails"><h2>Employee-wise payroll details</h2><div class="tablewrap"><table><thead><tr><th>Project</th><th>Period</th><th>Employee</th><th>Site verification</th><th>HR action</th><th>Director</th><th>Accounts</th><th>Net payable</th></tr></thead><tbody id="reportRows"></tbody></table></div></div>';
  const [rr,hr,pr]=await Promise.all([
