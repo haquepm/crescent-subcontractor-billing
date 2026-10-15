@@ -553,45 +553,51 @@ async function handleBankBulkFile(input){
  }catch(e){msg(e.message||String(e),'error')}
  finally{input.value=''}
 }
-async function renderPayrollReports(){
- $('view').innerHTML=header('Payroll Reports','Seven-day payroll workflow: Site Engineer verifies each line → Project Manager approves the sheet → HR processes or holds each employee → Director approves processed lines → Accounts exports bank transfers.')+
+async async function renderPayrollReports(){
+ $('view').innerHTML=header('Payroll Reports','Manage seven-day payroll according to your assigned role.')+
  '<div class="toolbar"><select id="reportProject"><option value="">All projects</option>'+projectOptions()+'</select><select id="reportStatus"><option value="all">All statuses</option><option value="draft">Draft / Site verification</option><option value="pending_pm">Pending Project Manager</option><option value="approved_by_pm">PM approved / HR processing</option><option value="pending_director">Pending Director</option><option value="approved">Director completed</option><option value="rejected">Returned</option></select></div><div id="payrollReportQueue"></div><div id="payrollEmployeeDetails"><h2>Employee-wise payroll details</h2><div class="tablewrap"><table><thead><tr><th>Project</th><th>Period</th><th>Employee</th><th>Site verification</th><th>HR action</th><th>Director</th><th>Accounts</th><th>Net payable</th></tr></thead><tbody id="reportRows"></tbody></table></div></div>';
- const {data:roleRows,error:roleError}=await db.from('project_assignments').select('project_id,role,is_active').eq('user_id',currentUser.id).eq('is_active',true);
- if(roleError){msg(roleError.message,'error');return;}
- const pmProjects=new Set((roleRows||[]).filter(x=>String(x.role).toLowerCase()==='project_manager').map(x=>x.project_id));
- const isPM=pmProjects.size>0;
- if(isPM){$('payrollEmployeeDetails').style.display='none';$('reportStatus').value='pending_pm';$('reportStatus').disabled=true;}
- function filtered(){const pid=$('reportProject').value,st=$('reportStatus').value;return musters.filter(m=>(!pid||m.project_id===pid)&&(!isPM||pmProjects.has(m.project_id))&&(st==='all'||(st==='draft'?['draft','pending_site_verification'].includes(m.status):m.status===st)))}
+ const [rr,hr,pr]=await Promise.all([
+  db.from('project_assignments').select('project_id,role,is_active').eq('user_id',currentUser.id).eq('is_active',true),
+  db.from('regular_employee_hr_users').select('user_id').eq('user_id',currentUser.id).eq('is_active',true),
+  db.from('user_profiles').select('is_admin').eq('user_id',currentUser.id).maybeSingle()
+ ]);
+ if(rr.error||hr.error||pr.error){msg((rr.error||hr.error||pr.error).message,'error');return;}
+ const roles=rr.data||[],pmProjects=new Set(roles.filter(x=>String(x.role).toLowerCase()==='project_manager').map(x=>x.project_id)),siteProjects=new Set(roles.filter(x=>String(x.role).toLowerCase()==='site_engineer').map(x=>x.project_id));
+ const isPM=pmProjects.size>0,isSite=siteProjects.size>0,isHR=(hr.data||[]).length>0,isAdmin=!!pr.data?.is_admin;
+ const scoped=musters.filter(m=>isAdmin||isHR||pmProjects.has(m.project_id)||siteProjects.has(m.project_id));
+ if(isPM&&!isAdmin){$('payrollEmployeeDetails').style.display='none';$('reportStatus').value='pending_pm';$('reportStatus').disabled=true;}
+ if(isSite&&!isPM&&!isHR&&!isAdmin){$('payrollEmployeeDetails').style.display='none';$('reportStatus').value='draft';$('reportStatus').disabled=true;}
+ function filtered(){const pid=$('reportProject').value,st=$('reportStatus').value;return scoped.filter(m=>(!pid||m.project_id===pid)&&(!isPM||isAdmin||pmProjects.has(m.project_id))&&(!isSite||isPM||isHR||isAdmin||siteProjects.has(m.project_id))&&(st==='all'||(st==='draft'?['draft','pending_site_verification','rejected'].includes(m.status):m.status===st)))}
  function paint(){
   const ms=filtered();
   $('payrollReportQueue').innerHTML=ms.map(m=>{
-   const lines=musterLines.filter(l=>l.muster_id===m.id);
-   const verified=lines.filter(l=>l.site_verification_status==='verified').length;
-   const processed=lines.filter(l=>l.hr_payment_status==='processed').length;
-   const held=lines.filter(l=>l.hr_payment_status==='held').length;
-   if(isPM){
-    const approved=m.status==='approved_by_pm'||m.status==='approved'||m.status==='pending_director';
-    const actions=m.status==='pending_pm'
-      ?'<button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">Verify</button> <button class="btn primary" onclick="decidePayrollReport(\''+m.id+'\',\'approved\')">Approve</button>'
-      :'<button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">Verify</button> <span class="pill" style="background:#e5f5e8;color:#218447">Approved ✓</span>';
+   const lines=musterLines.filter(l=>l.muster_id===m.id),verified=lines.filter(l=>l.site_verification_status==='verified').length,processed=lines.filter(l=>l.hr_payment_status==='processed').length,held=lines.filter(l=>l.hr_payment_status==='held').length,allVerified=lines.length>0&&verified===lines.length;
+   let actions='';
+   if(isPM&&!isAdmin){
+    const approved=['approved_by_pm','approved','pending_director'].includes(m.status);
+    actions=m.status==='pending_pm'?'<button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">Verify</button> <button class="btn primary" onclick="decidePayrollReport(\''+m.id+'\',\'approved\')">Approve</button>':'<button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">Verify</button> <span class="pill" style="background:#e5f5e8;color:#218447">Approved ✓</span>';
     return '<div class="panel" style="background:'+(approved?'#eff9f0':'')+';border-color:'+(approved?'#b8dfbf':'')+'"><div class="heading"><div><b>'+esc(projectName(m.project_id))+'</b><div class="muted">'+m.period_from+' to '+m.period_to+' · '+lines.length+' employees</div></div><span class="pill">'+(approved?'Approved':esc(m.status))+'</span></div><div class="muted">Site verified: '+verified+'/'+lines.length+'</div><div class="actions">'+actions+'</div></div>';
    }
-   let actions='<button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">Open / Print Payroll Sheet</button>';
-   if(['draft','pending_site_verification','rejected'].includes(m.status))actions+=' <button class="btn primary" onclick="renderSiteVerificationSheet(\''+m.id+'\')">Verify</button>';
-   if(['draft','pending_site_verification','rejected'].includes(m.status))actions+=' <button class="btn primary" onclick="submitPayrollReport(\''+m.id+'\')">Submit Verified Sheet to PM</button>';
-   else actions+=' <button class="btn" disabled style="background:#229653;color:#fff;border-color:#229653;opacity:1">Submitted ✓</button>';
-   if(m.status==='pending_pm')actions+=' <button class="btn primary" onclick="decidePayrollReport(\''+m.id+'\',\'approved\')">PM Approve Sheet</button> <button class="btn orange" onclick="decidePayrollReport(\''+m.id+'\',\'rejected\')">Return to HR</button>';
-   if(['approved_by_pm','approved'].includes(m.status)&&processed>0)actions+=' <button class="btn primary" onclick="submitPayrollToDirector(\''+m.id+'\')">Submit Processed Lines to Director</button>';
+   if(isSite&&!isHR&&!isAdmin&&!isPM){
+    actions=['draft','pending_site_verification','rejected'].includes(m.status)?'<button class="btn primary" onclick="renderSiteVerificationSheet(\''+m.id+'\')">Verify Attendance & Payroll</button>':'<span class="pill">Waiting for HR / PM</span>';
+   }else if(isHR&&!isAdmin){
+    actions='<button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">Open / Print Payroll Sheet</button>';
+    if(['draft','pending_site_verification','rejected'].includes(m.status))actions+=' <button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">Edit Payroll</button>';
+    if(['draft','pending_site_verification','rejected'].includes(m.status))actions+=allVerified?' <button class="btn primary" onclick="submitPayrollReport(\''+m.id+'\')">Submit Verified Sheet to PM</button>':' <span class="pill">Awaiting Site Verification ('+verified+'/'+lines.length+')</span>';
+    if(['approved_by_pm','approved'].includes(m.status)&&processed>0)actions+=' <button class="btn primary" onclick="submitPayrollToDirector(\''+m.id+'\')">Submit Processed Lines to Director</button>';
+    if(m.status==='pending_pm')actions+=' <span class="pill">Pending PM approval</span>';
+   }else{
+    actions='<button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">Open / Print Payroll Sheet</button>';
+   }
    return '<div class="panel"><div class="heading"><div><b>'+esc(projectName(m.project_id))+'</b><div class="muted">'+m.period_from+' to '+m.period_to+' · '+lines.length+' employees</div></div><span class="pill">'+esc(m.status)+'</span></div><div class="muted">Site verified: '+verified+'/'+lines.length+' · HR processed: '+processed+' · Held: '+held+'</div><div class="actions">'+actions+'</div></div>';
   }).join('')||'<p class="empty">No payroll reports match this filter.</p>';
-  if(isPM)return;
+  if(isPM||isSite&&!isHR&&!isAdmin){return;}
   $('reportRows').innerHTML=ms.flatMap(m=>musterLines.filter(l=>l.muster_id===m.id).map(l=>{
    let action='—';
-   if(false)action='';
-   else if(['approved_by_pm','approved'].includes(m.status)&&l.hr_payment_status!=='processed'&&l.director_line_status!=='approved')action='<button class="btn primary" onclick="processPayrollLine(\''+l.id+'\',\'process\')">Process</button> <button class="btn orange" onclick="processPayrollLine(\''+l.id+'\',\'hold\')">Hold</button>';
+   if(isHR&&!isAdmin&&['approved_by_pm','approved'].includes(m.status)&&l.hr_payment_status!=='processed'&&l.director_line_status!=='approved')action='<button class="btn primary" onclick="processPayrollLine(\''+l.id+'\',\'process\')">Process</button> <button class="btn orange" onclick="processPayrollLine(\''+l.id+'\',\'hold\')">Hold</button>';
    else if(m.status==='pending_director'&&l.director_line_status==='pending')action='<button class="btn primary" onclick="decideDirectorLine(\''+l.id+'\',\'approved\')">Director Approve</button> <button class="btn orange" onclick="decideDirectorLine(\''+l.id+'\',\'rejected\')">Reject</button>';
    else if(l.hr_payment_status==='held')action='<span class="pill">Held — HR can process later</span>';
-   return '<tr><td>'+esc(projectName(m.project_id))+'</td><td>'+m.period_from+' – '+m.period_to+'</td><td>'+esc(l.employee_name_snapshot)+'</td><td>'+esc(l.site_verification_status||'pending')+' '+(['draft','pending_site_verification'].includes(m.status)?action:'')+'</td><td>'+esc(l.hr_payment_status||'pending')+' '+(['approved_by_pm','approved'].includes(m.status)?action:'')+'</td><td>'+esc(l.director_line_status||'not_submitted')+(m.status==='pending_director'?'<br>'+action:'')+'</td><td>'+esc(l.accounts_payment_status||'pending')+'</td><td>₹'+Number(l.net_amount).toFixed(2)+'</td></tr>';
+   return '<tr><td>'+esc(projectName(m.project_id))+'</td><td>'+m.period_from+' – '+m.period_to+'</td><td>'+esc(l.employee_name_snapshot)+'</td><td>'+esc(l.site_verification_status||'pending')+'</td><td>'+esc(l.hr_payment_status||'pending')+' '+(isHR?action:'')+'</td><td>'+esc(l.director_line_status||'not_submitted')+'</td><td>'+esc(l.accounts_payment_status||'pending')+'</td><td>₹'+Number(l.net_amount).toFixed(2)+'</td></tr>';
   })).join('')||'<tr><td colspan="8" class="empty">No employee payroll lines.</td></tr>';
  }
  $('reportProject').onchange=paint;$('reportStatus').onchange=paint;paint();
