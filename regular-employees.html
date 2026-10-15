@@ -588,7 +588,9 @@ async function renderPayrollReports(){
     return '<div class="panel" style="background:'+(approved?'#eff9f0':'')+';border-color:'+(approved?'#b8dfbf':'')+'"><div class="heading"><div><b>'+esc(projectName(m.project_id))+'</b><div class="muted">'+m.period_from+' to '+m.period_to+' · '+lines.length+' employees</div></div><span class="pill">'+(approved?'Approved':esc(m.status))+'</span></div><div class="muted">Site verified: '+verified+'/'+lines.length+'</div><div class="actions">'+actions+'</div></div>';
    }
    if(isSite&&!isHR&&!isAdmin&&!isPM){
-    actions=['draft','pending_site_verification','rejected'].includes(m.status)?'<button class="btn primary" onclick="renderSiteVerificationSheet(\''+m.id+'\')">Verify Attendance & Payroll</button>':'<span class="pill">Waiting for HR / PM</span>';
+    if(m.status==='pending_pm'||['approved_by_pm','approved','pending_director'].includes(m.status))actions='<span class="pill" style="background:#e8f5e9;color:#218447">Submitted to PM ✓</span>';
+    else if(['draft','pending_site_verification','rejected'].includes(m.status))actions='<button class="btn primary" onclick="renderSiteVerificationSheet(\''+m.id+'\')">Verify Attendance & Payroll</button>'+(allVerified?' <button class="btn primary" onclick="submitPayrollReport(\''+m.id+'\')">Submit Verified Sheet to PM</button>':' <span class="pill">Awaiting verification ('+verified+'/'+lines.length+')</span>');
+    else actions='<span class="pill">Waiting for next workflow stage</span>';
    }else if(isHR&&!isAdmin){
     actions='<button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">Open / Print Payroll Sheet</button>';
     if(['draft','pending_site_verification','rejected'].includes(m.status))actions+=' <button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">Edit Payroll</button>';
