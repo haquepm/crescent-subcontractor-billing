@@ -154,7 +154,7 @@ input:focus,select:focus,.field input:focus,.field select:focus{border-color:#b5
 </style>
 </head><body>
 <div id="login"><div class="brand">CRESCENT <small>CONTRACTORS PVT. LTD.</small></div><h2>Regular Employee Management</h2><p class="muted">Sign in using your existing Crescent portal account.</p><form id="loginForm"><label>Username</label><input id="username" type="text" autocomplete="username" required><label>Password</label><input id="password" type="password" required><button type="submit" class="btn primary" style="width:100%">Sign in</button></form><div id="loginMsg" class="message"></div></div>
-<div id="app" class="shell hidden"><header class="top"><div class="top-brand"><img class="crescent-logo" src="/crescent-logo-header.png" alt="Crescent Contractors Pvt. Ltd."><span class="top-caption">REGULAR EMPLOYEE MANAGEMENT</span></div><div><span id="who" class="muted"></span> <button class="btn" id="signout">Sign out</button></div></header><div class="layout"><aside class="side"><nav class="nav"><button class="active" data-page="employees">Employee Directory</button><button data-page="attendance">Weekly Attendance</button><button data-page="advances">Advance Management</button><button data-page="musters">Weekly Muster</button><button data-page="payments">Payment Register</button><button data-page="reports">Payroll Reports</button><button data-page="projects">Project Assignments</button><button data-page="wages">Wage History</button><button data-page="codes">Activity Codes</button><button data-page="hr">HR Access</button></nav></aside><main><div id="message" class="message"></div><section id="view"></section></main></div></div>
+<div id="app" class="shell hidden"><header class="top"><div class="top-brand"><img class="crescent-logo" src="/crescent-logo-header.png" alt="Crescent Contractors Pvt. Ltd."><span class="top-caption">REGULAR EMPLOYEE MANAGEMENT</span></div><div><span id="who" class="muted"></span> <button class="btn" id="signout">Sign out</button></div></header><div class="layout"><aside class="side"><nav class="nav"><button class="active" data-page="employees">Employee Directory</button><button data-page="attendance">Weekly Attendance</button><button data-page="advances">Advance Management</button><button data-page="musters">Weekly Muster</button><button data-page="payments">Payment Register</button><button data-page="reports">Payroll Reports</button><button data-page="projects">Project Assignments</button><button data-page="wages">Wage History</button><button data-page="codes">Activity Codes</button><button data-page="hr">HR Access</button><button data-page="bank">Bank Details</button></nav></aside><main><div id="message" class="message"></div><section id="view"></section></main></div></div>
 <div id="modal" class="modal"><div class="dialog"><div style="display:flex;justify-content:space-between;align-items:center"><h2 id="modalTitle">Add</h2><button class="btn" id="closeModal">✕</button></div><div id="modalBody"></div></div></div>
 <script>
 const SUPABASE_URL='https://iqltunrvlosxdxucibef.supabase.co';
@@ -185,7 +185,7 @@ function projectName(id){const p=projects.find(x=>x.id===id);return p?(p.name||p
 function projectOptions(){return projects.filter(p=>p.is_active!==false).map(p=>`<option value="${p.id}">${esc(p.name||p.project_name||p.title||p.project_title||p.id)}</option>`).join('')}
 function activeAssignment(id){return assignments.find(a=>a.employee_id===id&&a.is_active)}
 function currentWage(id){return wages.find(w=>w.employee_id===id&&!w.effective_to)||wages.find(w=>w.employee_id===id)}
-function render(){document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===page));if(page==='employees')renderEmployees();if(page==='attendance')renderAttendance();if(page==='advances')renderAdvances();if(page==='musters')renderMusters();if(page==='payments')renderPayments();if(page==='reports')renderPayrollReports();if(page==='projects')renderAssignments();if(page==='wages')renderWages();if(page==='codes')renderCodes();if(page==='hr')renderHR();}
+function render(){document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===page));if(page==='employees')renderEmployees();if(page==='attendance')renderAttendance();if(page==='advances')renderAdvances();if(page==='musters')renderMusters();if(page==='payments')renderPayments();if(page==='reports')renderPayrollReports();if(page==='projects')renderAssignments();if(page==='wages')renderWages();if(page==='codes')renderCodes();if(page==='hr')renderHR();if(page==='bank')renderBankDetails();}
 function header(title,desc,button=''){return `<div class="heading"><div><h1>${title}</h1><div class="muted">${desc}</div></div>${button}</div>`}
 function renderEmployees(){ $('view').innerHTML=header('Employee Directory','Register and maintain regular employees. Subcontractor labour records are separate.',`<div class="actions" style="margin:0;flex-wrap:wrap"><button class="btn" onclick="downloadEmployeeTemplate()">↓ Download CSV Template</button><button class="btn" onclick="document.getElementById('bulkEmployeeFile').click()">↑ Bulk Upload CSV</button><button class="btn primary" onclick="addEmployee()">+ Register Employee</button><input id="bulkEmployeeFile" type="file" accept=".csv,text/csv" style="display:none" onchange="handleBulkEmployeeFile(this)"></div>`)+`<div class="stats"><div class="stat">Total employees<strong>${employees.length}</strong></div><div class="stat">Active employees<strong>${employees.filter(e=>e.is_active).length}</strong></div><div class="stat">Inactive employees<strong>${employees.filter(e=>!e.is_active).length}</strong></div></div><div class="toolbar"><input id="empSearch" placeholder="Search employee code, name or work"><select id="empStatus"><option value="all">All employees</option><option value="active">Active</option><option value="inactive">Inactive</option></select></div><div class="tablewrap"><table><thead><tr><th>Employee Code</th><th>Employee</th><th>Work Category</th><th>Project</th><th>Daily Wage</th><th>Status</th><th>Actions</th></tr></thead><tbody id="empRows"></tbody></table></div>`;fillEmployeeRows();$('empSearch').oninput=fillEmployeeRows;$('empStatus').onchange=fillEmployeeRows;}
 function downloadEmployeeTemplate(){
@@ -433,6 +433,54 @@ async function downloadEmployeeBankTransfer(musterId){
   await load();renderPayments();msg('Bank transfer Excel generated with exactly 8 columns and '+rows.length+' separate employee transactions.');
  }catch(e){msg(e.message||String(e),'error')}
 }
+async function renderBankDetails(){
+ $('view').innerHTML=header('Employee Bank Details','HR/Admin can bulk update employee bank details. Site Engineers can update bank details for employees assigned to their project.')+
+ '<div class="panel"><div class="toolbar"><button class="btn" onclick="downloadBankTemplate()">Download Excel Template</button><button class="btn primary" onclick="$(\'bankBulkFile\').click()">Bulk Update Bank Details</button><input id="bankBulkFile" type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleBankBulkFile(this)"></div><div class="notice">Template columns: Employee Code, Account Number, Account Holder Name, Bank Name, IFSC Code, Account Type, Change Reason. Shared accounts can be entered for multiple employees; every employee remains a separate payroll beneficiary.</div><div id="bankUploadPreview"></div></div><div class="tablewrap"><table><thead><tr><th>Employee Code</th><th>Employee</th><th>Project</th><th>Account Number</th><th>Beneficiary Name</th><th>Bank</th><th>IFSC</th></tr></thead><tbody id="bankRows"><tr><td colspan="7" class="empty">Loading bank details…</td></tr></tbody></table></div>';
+ try{
+  const {data,error}=await db.from('regular_employee_bank_account_links').select('employee_id,bank_account_id,is_primary,effective_from,effective_to,regular_employee_bank_accounts(id,account_number,account_holder_name,bank_name,ifsc_code,account_type)').eq('is_primary',true).is('effective_to',null);
+  if(error)throw error;
+  const links=data||[];
+  $('bankRows').innerHTML=employees.filter(e=>e.is_active!==false).map(e=>{
+   const x=links.find(v=>v.employee_id===e.id),b=x?.regular_employee_bank_accounts||{},a=activeAssignment(e.id);
+   return '<tr><td>'+esc(e.employee_code)+'</td><td>'+esc(e.employee_name)+'</td><td>'+esc(projectName(a?.project_id||''))+'</td><td>'+esc(b.account_number||'—')+'</td><td>'+esc(b.account_holder_name||'—')+'</td><td>'+esc(b.bank_name||'—')+'</td><td>'+esc(b.ifsc_code||'—')+'</td></tr>';
+  }).join('')||'<tr><td colspan="7" class="empty">No active employees.</td></tr>';
+ }catch(e){$('bankRows').innerHTML='<tr><td colspan="7" class="empty">'+esc(e.message)+'</td></tr>'}
+}
+function downloadBankTemplate(){
+ const data=[['Employee Code','Account Number','Account Holder Name','Bank Name','IFSC Code','Account Type','Change Reason'],['EMP001','123456789012','Sample Employee','Federal Bank','FDRL0001234','personal','Employee requested account update']];
+ const ws=XLSX.utils.aoa_to_sheet(data),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Bank Details');XLSX.writeFile(wb,'Crescent_Employee_Bank_Details_Template.xlsx');
+}
+async function handleBankBulkFile(input){
+ const preview=$('bankUploadPreview');preview.innerHTML='';
+ try{
+  const file=input.files?.[0];if(!file)return;
+  const wb=XLSX.read(await file.arrayBuffer(),{type:'array'}),rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});
+  if(!rows.length)throw new Error('The uploaded sheet is empty.');
+  const required=['Employee Code','Account Number','Account Holder Name','Bank Name','IFSC Code'];
+  const missing=required.filter(k=>!(k in rows[0]));if(missing.length)throw new Error('Missing columns: '+missing.join(', '));
+  const seen=new Set(),prepared=[];
+  for(let i=0;i<rows.length;i++){
+   const r=rows[i],code=String(r['Employee Code']).trim(),key=code.toLowerCase();
+   if(!code||seen.has(key))throw new Error('Row '+(i+2)+': blank or duplicate employee code.');
+   seen.add(key);
+   const e=employees.find(x=>String(x.employee_code).trim().toLowerCase()===key);
+   if(!e)throw new Error('Row '+(i+2)+': employee code '+code+' was not found.');
+   const account=String(r['Account Number']).trim(),holder=String(r['Account Holder Name']).trim(),ifsc=String(r['IFSC Code']).trim().toUpperCase();
+   if(!account||!holder||!ifsc)throw new Error('Row '+(i+2)+': account number, account holder and IFSC are mandatory.');
+   if(!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc))throw new Error('Row '+(i+2)+': invalid IFSC format.');
+   prepared.push({employee:e,account,holder,bank:String(r['Bank Name']||''),ifsc,type:String(r['Account Type']||'personal'),reason:String(r['Change Reason']||'Bulk bank detail update')});
+  }
+  preview.innerHTML='<p><b>'+prepared.length+' employee bank records ready.</b> Existing active bank links will be closed and replaced from today. Confirm only after checking the employee mapping.</p><button class="btn primary" id="confirmBankUpload">Confirm Bank Detail Update</button>';
+  $('confirmBankUpload').onclick=async()=>{
+   const btn=$('confirmBankUpload');btn.disabled=true;let done=0;
+   try{
+    for(const r of prepared){await rpc('save_regular_employee_bank_details',{p_employee_id:r.employee.id,p_account_number:r.account,p_account_holder_name:r.holder,p_bank_name:r.bank,p_ifsc_code:r.ifsc,p_account_type:r.type,p_change_reason:r.reason});done++;}
+    msg('Bank details updated for '+done+' employees.');await renderBankDetails();
+   }catch(e){msg('Update stopped after '+done+' rows. Review the completed employees before retrying. '+e.message,'error')}
+  };
+ }catch(e){msg(e.message||String(e),'error')}
+ finally{input.value=''}
+}
 function renderPayrollReports(){
  $('view').innerHTML=header('Payroll Reports','Seven-day payroll workflow: Site Engineer verifies each line → Project Manager approves the sheet → HR processes or holds each employee → Director approves processed lines → Accounts exports bank transfers.')+
  '<div class="toolbar"><select id="reportProject"><option value="">All projects</option>'+projectOptions()+'</select><select id="reportStatus"><option value="all">All statuses</option><option value="draft">Draft / Site verification</option><option value="pending_pm">Pending Project Manager</option><option value="approved_by_pm">PM approved / HR processing</option><option value="pending_director">Pending Director</option><option value="approved">Director completed</option><option value="rejected">Returned</option></select></div><div id="payrollReportQueue"></div><h2>Employee-wise payroll details</h2><div class="tablewrap"><table><thead><tr><th>Project</th><th>Period</th><th>Employee</th><th>Site verification</th><th>HR action</th><th>Director</th><th>Accounts</th><th>Net payable</th></tr></thead><tbody id="reportRows"></tbody></table></div>';
@@ -456,7 +504,7 @@ function renderPayrollReports(){
    else if(m.status==='approved_by_pm'&&l.hr_payment_status!=='processed')action='<button class="btn primary" onclick="processPayrollLine(\''+l.id+'\',\'process\')">Process</button> <button class="btn orange" onclick="processPayrollLine(\''+l.id+'\',\'hold\')">Hold</button>';
    else if(m.status==='pending_director'&&l.director_line_status==='pending')action='<button class="btn primary" onclick="decideDirectorLine(\''+l.id+'\',\'approved\')">Director Approve</button> <button class="btn orange" onclick="decideDirectorLine(\''+l.id+'\',\'rejected\')">Reject</button>';
    else if(l.hr_payment_status==='held')action='<span class="pill">Held — HR can process later</span>';
-   return '<tr><td>'+esc(projectName(m.project_id))+'</td><td>'+m.period_from+' – '+m.period_to+'</td><td>'+esc(l.employee_name_snapshot)+'</td><td>'+esc(l.site_verification_status||'pending')+'</td><td>'+esc(l.hr_payment_status||'pending')+' '+(m.status==='approved_by_pm'?action:'')+'</td><td>'+esc(l.director_line_status||'not_submitted')+(m.status==='pending_director'?'<br>'+action:'')+'</td><td>'+esc(l.accounts_payment_status||'pending')+'</td><td>₹'+Number(l.net_amount).toFixed(2)+'</td></tr>';
+   return '<tr><td>'+esc(projectName(m.project_id))+'</td><td>'+m.period_from+' – '+m.period_to+'</td><td>'+esc(l.employee_name_snapshot)+'</td><td>'+esc(l.site_verification_status||'pending')+' '+(['draft','pending_site_verification'].includes(m.status)?action:'')+'</td><td>'+esc(l.hr_payment_status||'pending')+' '+(m.status==='approved_by_pm'?action:'')+'</td><td>'+esc(l.director_line_status||'not_submitted')+(m.status==='pending_director'?'<br>'+action:'')+'</td><td>'+esc(l.accounts_payment_status||'pending')+'</td><td>₹'+Number(l.net_amount).toFixed(2)+'</td></tr>';
   })).join('')||'<tr><td colspan="8" class="empty">No employee payroll lines.</td></tr>';
  }
  $('reportProject').onchange=paint;$('reportStatus').onchange=paint;paint();
