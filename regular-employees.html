@@ -481,17 +481,37 @@ async function downloadEmployeeBankTransfer(musterId){
  }catch(e){msg(e.message||String(e),'error')}
 }
 async function renderBankDetails(){
- $('view').innerHTML=header('Employee Bank Details','HR/Admin can bulk update employee bank details. Site Engineers can update bank details for employees assigned to their project.')+
- '<div class="panel"><div class="toolbar"><button class="btn" onclick="downloadBankTemplate()">Download Excel Template</button><button class="btn primary" onclick="$(\'bankBulkFile\').click()">Bulk Update Bank Details</button><input id="bankBulkFile" type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleBankBulkFile(this)"></div><div class="notice">Template columns: Employee Code, Account Number, Account Holder Name, Bank Name, IFSC Code, Account Type, Change Reason. Shared accounts can be entered for multiple employees; every employee remains a separate payroll beneficiary.</div><div id="bankUploadPreview"></div></div><div class="tablewrap"><table><thead><tr><th>Employee Code</th><th>Employee</th><th>Project</th><th>Account Number</th><th>Beneficiary Name</th><th>Bank</th><th>IFSC</th></tr></thead><tbody id="bankRows"><tr><td colspan="7" class="empty">Loading bank details…</td></tr></tbody></table></div>';
+ $('view').innerHTML=header('Employee Bank Details','Site Engineers can update bank details for employees assigned to their project. HR/Admin can manage all employee bank details.')+
+ '<div class="panel"><div class="toolbar"><button class="btn" onclick="downloadBankTemplate()">Download Excel Template</button><button class="btn primary" onclick="$(\'bankBulkFile\').click()">Bulk Update Bank Details</button><input id="bankBulkFile" type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleBankBulkFile(this)"></div><div class="notice">Template columns: Employee Code, Account Number, Account Holder Name, Bank Name, IFSC Code, Account Type, Change Reason. Shared accounts can be entered for multiple employees; every employee remains a separate payroll beneficiary.</div><div id="bankUploadPreview"></div></div><div class="tablewrap"><table><thead><tr><th>Employee Code</th><th>Employee</th><th>Project</th><th>Account Number</th><th>Beneficiary Name</th><th>Bank</th><th>IFSC</th><th>Action</th></tr></thead><tbody id="bankRows"><tr><td colspan="8" class="empty">Loading bank details…</td></tr></tbody></table></div>';
  try{
-  const {data,error}=await db.from('regular_employee_bank_account_links').select('employee_id,bank_account_id,is_primary,effective_from,effective_to,regular_employee_bank_accounts(id,account_number,account_holder_name,bank_name,ifsc_code,account_type)').eq('is_primary',true).is('effective_to',null);
-  if(error)throw error;
-  const links=data||[];
+  const [lr,ur,hr]=await Promise.all([
+   db.from('regular_employee_bank_account_links').select('employee_id,bank_account_id,is_primary,effective_from,effective_to,regular_employee_bank_accounts(id,account_number,account_holder_name,bank_name,ifsc_code,account_type)').eq('is_primary',true).is('effective_to',null),
+   db.from('project_assignments').select('project_id,role,is_active').eq('user_id',currentUser.id).eq('is_active',true),
+   db.from('regular_employee_hr_users').select('user_id,is_active').eq('user_id',currentUser.id).eq('is_active',true)
+  ]);
+  if(lr.error)throw lr.error;if(ur.error)throw ur.error;if(hr.error)throw hr.error;
+  const links=lr.data||[],roles=ur.data||[],isAdmin=!!(currentProfile?.is_admin),isHR=(hr.data||[]).length>0;
+  const siteProjects=new Set(roles.filter(x=>String(x.role).toLowerCase()==='site_engineer').map(x=>x.project_id));
   $('bankRows').innerHTML=employees.filter(e=>e.is_active!==false).map(e=>{
-   const x=links.find(v=>v.employee_id===e.id),b=x?.regular_employee_bank_accounts||{},a=activeAssignment(e.id);
-   return '<tr><td>'+esc(e.employee_code)+'</td><td>'+esc(e.employee_name)+'</td><td>'+esc(projectName(a?.project_id||''))+'</td><td>'+esc(b.account_number||'—')+'</td><td>'+esc(b.account_holder_name||'—')+'</td><td>'+esc(b.bank_name||'—')+'</td><td>'+esc(b.ifsc_code||'—')+'</td></tr>';
-  }).join('')||'<tr><td colspan="7" class="empty">No active employees.</td></tr>';
- }catch(e){$('bankRows').innerHTML='<tr><td colspan="7" class="empty">'+esc(e.message)+'</td></tr>'}
+   const x=links.find(v=>v.employee_id===e.id),b=x?.regular_employee_bank_accounts||{},a=activeAssignment(e.id),pid=a?.project_id||'',canEdit=isAdmin||isHR||siteProjects.has(pid);
+   return '<tr><td>'+esc(e.employee_code)+'</td><td>'+esc(e.employee_name)+'</td><td>'+esc(projectName(pid))+'</td><td>'+esc(b.account_number||'—')+'</td><td>'+esc(b.account_holder_name||'—')+'</td><td>'+esc(b.bank_name||'—')+'</td><td>'+esc(b.ifsc_code||'—')+'</td><td>'+(canEdit?'<button class="btn primary" onclick="editEmployeeBankDetails(\''+e.id+'\')">Update</button>':'—')+'</td></tr>';
+  }).join('')||'<tr><td colspan="8" class="empty">No active employees.</td></tr>';
+ }catch(e){$('bankRows').innerHTML='<tr><td colspan="8" class="empty">'+esc(e.message)+'</td></tr>'}
+}
+async function editEmployeeBankDetails(employeeId){
+ const e=employees.find(x=>x.id===employeeId);if(!e)return;
+ const {data,error}=await db.from('regular_employee_bank_account_links').select('regular_employee_bank_accounts(account_number,account_holder_name,bank_name,ifsc_code,account_type)').eq('employee_id',employeeId).is('effective_to',null).eq('is_primary',true).maybeSingle();
+ if(error){msg(error.message,'error');return}
+ const b=data?.regular_employee_bank_accounts||{};
+ modal('Update Bank Details — '+esc(e.employee_name),
+ '<div class="formgrid"><label>Account Number<input id="editBankAccount" value="'+esc(b.account_number||'')+'" required></label><label>Account Holder Name<input id="editBankHolder" value="'+esc(b.account_holder_name||'')+'" required></label><label>Bank Name<input id="editBankName" value="'+esc(b.bank_name||'')+'"></label><label>IFSC Code<input id="editBankIfsc" value="'+esc(b.ifsc_code||'')+'" required maxlength="11"></label><label>Account Type<select id="editBankType"><option value="personal" '+((b.account_type||'personal')==='personal'?'selected':'')+'>Personal</option><option value="salary" '+(b.account_type==='salary'?'selected':'')+'>Salary</option><option value="current" '+(b.account_type==='current'?'selected':'')+'>Current</option></select></label><label>Reason for Change<input id="editBankReason" value="Employee requested bank detail update" required></label></div><div class="actions" style="justify-content:flex-end;margin-top:18px"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="saveEmployeeBankDetails(\''+employeeId+'\')">Save Bank Details</button></div>');
+}
+async function saveEmployeeBankDetails(employeeId){
+ const account=$('editBankAccount').value.trim(),holder=$('editBankHolder').value.trim(),bank=$('editBankName').value.trim(),ifsc=$('editBankIfsc').value.trim().toUpperCase(),type=$('editBankType').value,reason=$('editBankReason').value.trim();
+ if(!account||!holder||!ifsc||!reason){msg('Account number, account holder, IFSC and reason are required.','error');return}
+ if(!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)){msg('Please enter a valid 11-character IFSC code.','error');return}
+ try{await rpc('save_regular_employee_bank_details',{p_employee_id:employeeId,p_account_number:account,p_account_holder_name:holder,p_bank_name:bank,p_ifsc_code:ifsc,p_account_type:type,p_change_reason:reason});closeModal();await renderBankDetails();msg('Bank details updated successfully.');}
+ catch(e){msg(e.message||String(e),'error')}
 }
 function downloadBankTemplate(){
  const data=[['Employee Code','Account Number','Account Holder Name','Bank Name','IFSC Code','Account Type','Change Reason'],['EMP001','123456789012','Sample Employee','Federal Bank','FDRL0001234','personal','Employee requested account update']];
