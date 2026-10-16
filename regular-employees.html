@@ -483,7 +483,8 @@ async function renderPayments(){
  '<h2>Generate Bank Transfer Sheet</h2>'+
  (eligible.map(m=>{
   const ready=musterLines.filter(l=>l.muster_id===m.id&&l.director_line_status==='approved'&&l.accounts_payment_status==='ready').length;
-  return '<div class="panel"><div class="heading"><div><b>'+esc(projectName(m.project_id))+'</b><div class="muted">'+m.period_from+' to '+m.period_to+'</div></div></div><p>Employees ready for transfer: '+ready+'</p>'+(ready?'<button class="btn primary" onclick="downloadEmployeeBankTransfer(&quot;'+m.id+'&quot;)">Generate Bank Transfer Sheet</button>':'<span class="pill">No new payments ready</span>')+'</div>';
+  const batches=[...new Map(visibleRows.filter(r=>r.muster_id===m.id).map(r=>[r.batch_id,r])).values()];
+  return '<div class="panel"><div class="heading"><div><b>'+esc(projectName(m.project_id))+'</b><div class="muted">'+m.period_from+' to '+m.period_to+'</div></div></div><p>Employees ready for transfer: '+ready+'</p>'+(ready?'<button class="btn primary" onclick="downloadEmployeeBankTransfer(&quot;'+m.id+'&quot;)">Generate Bank Transfer Sheet</button>':'<span class="pill">No new payments ready</span>')+(batches.length?'<div class="toolbar"><b>Previously generated sheets:</b>'+batches.map(x=>'<button class="btn" onclick="downloadExistingBankTransfer(&quot;'+x.batch_id+'&quot;)">Download again · '+esc(x.value_date||'Batch')+'</button>').join('')+'</div>':'')+'</div>';
  }).join('')||'<p class="empty">No Director-approved payroll reports are ready for bank transfer.</p>')+
  '<h2>Employee Payment History</h2><div class="tablewrap"><table><thead><tr><th>Employee</th><th>Project</th><th>Payroll Period</th><th>Amount Transferred</th><th>Transfer Date</th><th>Status</th><th>UTR / Reference</th><th>Action</th></tr></thead><tbody>'+
  (visibleRows.map(r=>{
@@ -501,18 +502,25 @@ async function downloadEmployeeBankTransfer(musterId){
  try{
   const valueDate=new Date().toLocaleDateString('en-CA');
   const batchId=await rpc('create_regular_employee_bank_transfer_batch',{p_muster_id:musterId,p_value_date:valueDate});
-  const {data,error}=await db.from('regular_employee_bank_transfer_rows').select('*').eq('batch_id',batchId).order('created_at');
-  if(error)throw error;
-  if(!data?.length)throw new Error('The transfer batch contains no employee rows.');
-  const headers=['Transaction Type','Debit Account Number','Transaction Amount','Value Date','Beneficiary Account Number','Beneficiary Name','IFSC Code','Credit Remarks'];
-  const rows=data.map(r=>[r.transaction_type,r.debit_account_number,Number(r.transaction_amount),r.value_date,r.beneficiary_account_number,r.beneficiary_name,r.ifsc_code,r.credit_remarks]);
-  if(headers.length!==8||rows.some(r=>r.length!==8))throw new Error('Transfer export validation failed: the sheet must contain exactly 8 columns.');
-  const ws=XLSX.utils.aoa_to_sheet([headers,...rows]);
-  ws['!cols']=[{wch:17},{wch:22},{wch:18},{wch:14},{wch:24},{wch:28},{wch:16},{wch:30}];
-  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Bank Transfer');
-  XLSX.writeFile(wb,'Crescent_Bank_Transfer_'+valueDate+'.xlsx');
-  await load();renderPayments();msg('Bank transfer Excel generated with exactly 8 columns and '+rows.length+' separate employee transactions.');
+  await exportExistingBankTransfer(batchId);
+  await load();renderPayments();msg('Bank transfer Excel generated. Each employee has a separate transaction row.');
  }catch(e){msg(e.message||String(e),'error')}
+}
+async function downloadExistingBankTransfer(batchId){
+ try{await exportExistingBankTransfer(batchId);msg('Previously generated bank transfer Excel downloaded again.');}
+ catch(e){msg(e.message||String(e),'error')}
+}
+async function exportExistingBankTransfer(batchId){
+ const {data,error}=await db.from('regular_employee_bank_transfer_rows').select('*').eq('batch_id',batchId).order('created_at');
+ if(error)throw error;
+ if(!data?.length)throw new Error('No rows found for this transfer batch.');
+ const headers=['Transaction Type','Debit Account Number','Transaction Amount','Value Date','Beneficiary Account Number','Beneficiary Name','IFSC Code','Credit Remarks'];
+ const rows=data.map(r=>[r.transaction_type,r.debit_account_number,Number(r.transaction_amount),r.value_date,r.beneficiary_account_number,r.beneficiary_name,r.ifsc_code,r.credit_remarks]);
+ if(headers.length!==8||rows.some(r=>r.length!==8))throw new Error('Transfer export validation failed: the sheet must contain exactly 8 columns.');
+ const ws=XLSX.utils.aoa_to_sheet([headers,...rows]);ws['!cols']=[{wch:17},{wch:22},{wch:18},{wch:14},{wch:24},{wch:28},{wch:16},{wch:30}];
+ const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Bank Transfer');
+ const date=String(data[0].value_date||'transfer');
+ XLSX.writeFile(wb,'Crescent_Bank_Transfer_'+date+'.xlsx');
 }
 async function renderBankDetails(){
  $('view').innerHTML=header('Employee Bank Details','Site Engineers can update bank details for employees assigned to their project. HR/Admin can manage all employee bank details.')+
