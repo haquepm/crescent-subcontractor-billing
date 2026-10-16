@@ -484,13 +484,33 @@ async function renderPayments(){
  (eligible.map(m=>{
   const ready=musterLines.filter(l=>l.muster_id===m.id&&l.director_line_status==='approved'&&l.accounts_payment_status==='ready').length;
   const batches=[...new Map(visibleRows.filter(r=>r.muster_id===m.id).map(r=>[r.batch_id,r])).values()];
-  return '<div class="panel"><div class="heading"><div><b>'+esc(projectName(m.project_id))+'</b><div class="muted">'+m.period_from+' to '+m.period_to+'</div></div></div><p>Employees ready for transfer: '+ready+'</p>'+(ready?'<button class="btn primary" onclick="downloadEmployeeBankTransfer(&quot;'+m.id+'&quot;)">Generate Bank Transfer Sheet</button>':'<span class="pill">No new payments ready</span>')+(batches.length?'<div class="toolbar"><b>Previously generated sheets:</b>'+batches.map(x=>'<button class="btn" onclick="downloadExistingBankTransfer(&quot;'+x.batch_id+'&quot;)">Download again · '+esc(x.value_date||'Batch')+'</button>').join('')+'</div>':'')+'</div>';
+  return '<div class="panel"><div class="heading"><div><b>'+esc(projectName(m.project_id))+'</b><div class="muted">'+m.period_from+' to '+m.period_to+'</div></div></div><p>Employees ready for transfer: '+ready+'</p>'+(ready?'<button class="btn primary" onclick="downloadEmployeeBankTransfer(&quot;'+m.id+'&quot;)">Generate Bank Transfer Sheet</button>':'<span class="pill">No new payments ready</span>')+(batches.length?'<div class="toolbar"><b>Previously generated sheets:</b>'+batches.map(x=>{const pending=visibleRows.filter(r=>r.batch_id===x.batch_id&&r.payment_status!=='paid').length;return '<span class="toolbar"><button class="btn" onclick="downloadExistingBankTransfer(&quot;'+x.batch_id+'&quot;)">Download again · '+esc(x.value_date||'Batch')+'</button>'+(pending?'<button class="btn primary" onclick="markBatchPaymentsCompleted(&quot;'+x.batch_id+'&quot;)">Mark All Payments Completed ('+pending+')</button>':'<span class="pill">All completed ✓</span>')+'</span>';}).join('')+'</div>':'')+'</div>';
  }).join('')||'<p class="empty">No Director-approved payroll reports are ready for bank transfer.</p>')+
- '<h2>Payment Register – Employee-wise Transfer History</h2><p class="muted">Each completed transfer is recorded separately with the employee, actual amount and date of completion.</p><div class="tablewrap"><table><thead><tr><th>Employee</th><th>Project</th><th>Payroll Period</th><th>Amount Transferred</th><th>Transfer Date</th><th>Status</th><th>UTR / Reference</th><th>Action</th></tr></thead><tbody>'+
+ '<h2>Payment Register – Employee-wise Transfer History</h2><p class="muted">Search by employee name and filter by actual payment date or bank value date.</p><div class="toolbar" style="align-items:end"><label>Employee name<input id="paymentSearchEmployee" placeholder="Search employee name" oninput="filterPaymentRegister()"></label><label>From date<input id="paymentDateFrom" type="date" onchange="filterPaymentRegister()"></label><label>To date<input id="paymentDateTo" type="date" onchange="filterPaymentRegister()"></label><button class="btn" onclick="clearPaymentRegisterFilters()">Clear</button></div><div class="tablewrap"><table><thead><tr><th>Employee</th><th>Project</th><th>Payroll Period</th><th>Amount Transferred</th><th>Transfer Date</th><th>Status</th><th>UTR / Reference</th></tr></thead><tbody id="paymentRegisterRows">'+
  (visibleRows.map(r=>{
-  const m=musters.find(x=>x.id===r.muster_id),l=musterLines.find(x=>x.id===r.muster_line_id),paid=r.payment_status==='paid';
-  return '<tr><td>'+esc(r.credit_remarks||l?.employee_name_snapshot||r.beneficiary_name||'—')+'</td><td>'+esc(projectName(m?.project_id||''))+'</td><td>'+esc((m?.period_from||'')+' – '+(m?.period_to||''))+'</td><td>₹'+Number(r.transaction_amount||0).toFixed(2)+'</td><td>'+esc(r.paid_at?new Date(r.paid_at).toLocaleDateString('en-IN'):r.value_date||'—')+'</td><td><span class="pill">'+(paid?'Payment Completed':'Awaiting Confirmation')+'</span></td><td>'+esc(r.payment_reference||'—')+'</td><td>'+(paid?'<span style="color:#218447;font-weight:700">Processed ✓</span>':'<button class="btn primary" onclick="markTransferPaid(\''+r.id+'\')">Mark as Payment Completed</button>')+'</td></tr>';
- }).join('')||'<tr><td colspan="8" class="empty">No employee bank transfers recorded yet.</td></tr>')+'</tbody></table></div>';
+  const m=musters.find(x=>x.id===r.muster_id),l=musterLines.find(x=>x.id===r.muster_line_id),paid=r.payment_status==='paid',name=r.credit_remarks||l?.employee_name_snapshot||r.beneficiary_name||'—',date=r.paid_at?new Date(r.paid_at).toISOString().slice(0,10):r.value_date||'';
+  return '<tr data-employee="'+esc(String(name).toLowerCase())+'" data-date="'+esc(date)+'"><td>'+esc(name)+'</td><td>'+esc(projectName(m?.project_id||''))+'</td><td>'+esc((m?.period_from||'')+' – '+(m?.period_to||''))+'</td><td>₹'+Number(r.transaction_amount||0).toFixed(2)+'</td><td>'+esc(r.paid_at?new Date(r.paid_at).toLocaleDateString('en-IN'):r.value_date||'—')+'</td><td><span class="pill">'+(paid?'Payment Completed':'Awaiting Confirmation')+'</span></td><td>'+esc(r.payment_reference||'—')+'</td></tr>';
+ }).join('')||'<tr><td colspan="7" class="empty">No employee bank transfers recorded yet.</td></tr>')+'</tbody></table></div>';
+}
+function filterPaymentRegister(){
+ const q=($('paymentSearchEmployee')?.value||'').trim().toLowerCase(),from=$('paymentDateFrom')?.value||'',to=$('paymentDateTo')?.value||'';
+ document.querySelectorAll('#paymentRegisterRows tr[data-employee]').forEach(row=>{const name=row.dataset.employee||'',date=row.dataset.date||'';row.style.display=(!q||name.includes(q))&&(!from||date>=from)&&(!to||date<=to)?'':'none';});
+}
+function clearPaymentRegisterFilters(){
+ if($('paymentSearchEmployee'))$('paymentSearchEmployee').value='';
+ if($('paymentDateFrom'))$('paymentDateFrom').value='';
+ if($('paymentDateTo'))$('paymentDateTo').value='';
+ filterPaymentRegister();
+}
+async function markBatchPaymentsCompleted(batchId){
+ const pending=Number((document.querySelector('[onclick*="'+batchId+'"]')?.textContent.match(/\((\d+)\)/)||[])[1]||0);
+ if(!confirm('Confirm that the bank transfer has succeeded for every employee in this batch? This will mark all unpaid transactions in the batch as completed.'))return;
+ const reference=prompt('Enter common UTR / bank reference for this batch (optional):');
+ if(reference===null)return;
+ try{
+  const count=await rpc('mark_regular_employee_bank_transfer_batch_paid',{p_batch_id:batchId,p_payment_reference:reference||null});
+  await load();await renderPayments();msg(count+' employee payments marked completed. Payment Register updated.');
+ }catch(e){msg(e.message||String(e),'error');}
 }
 async function markTransferPaid(id){
  const reference=prompt('Enter UTR / bank transaction reference (optional):');
