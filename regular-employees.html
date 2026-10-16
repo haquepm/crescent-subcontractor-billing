@@ -572,7 +572,19 @@ async function handleBankBulkFile(input){
    if(!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc))throw new Error('Row '+(i+2)+': invalid IFSC format.');
    prepared.push({employee:e,account,holder,bank:String(r['Bank Name']||''),ifsc,type:String(r['Account Type']||'personal'),reason:String(r['Change Reason']||'Bulk bank detail update')});
   }
-  preview.innerHTML='<p><b>'+prepared.length+' employee bank records ready.</b> Existing active bank links will be closed and replaced from today. Confirm only after checkasync function renderPayrollReports(){
+  window.pendingBankUpdates=prepared;
+  preview.innerHTML='<p><b>'+prepared.length+' employee bank records ready.</b> Existing active bank links will be closed and replaced from today.</p><button class="btn primary" onclick="confirmBankBulkUpdate()">Confirm & Update Bank Details</button>';
+ }catch(e){preview.innerHTML='<p class="message error show">'+esc(e.message||String(e))+'</p>';}
+}
+async function confirmBankBulkUpdate(){
+ const rows=window.pendingBankUpdates||[];if(!rows.length){msg('Upload and validate a bank details sheet first.','error');return;}
+ if(!confirm('Update bank details for '+rows.length+' employees?'))return;
+ try{
+  for(const r of rows)await rpc('save_regular_employee_bank_details',{p_employee_id:r.employee.id,p_account_number:r.account,p_account_holder_name:r.holder,p_bank_name:r.bank,p_ifsc_code:r.ifsc,p_account_type:r.type,p_change_reason:r.reason});
+  window.pendingBankUpdates=[];$('bankUploadPreview').innerHTML='<p class="message success show">Updated '+rows.length+' employee bank records.</p>';await load();renderBankDetails();msg('Bulk bank details updated successfully.');
+ }catch(e){msg('Bulk update stopped: '+(e.message||String(e)),'error');}
+}
+async function renderPayrollReports(){
  $('view').innerHTML=header('Payroll Reports','Manage seven-day payroll according to your assigned role.')+
  '<div class="toolbar"><select id="reportProject"><option value="">All projects</option>'+projectOptions()+'</select><select id="reportStatus"><option value="all">All statuses</option><option value="draft">Draft / Site verification</option><option value="pending_pm">Pending Project Manager</option><option value="approved_by_pm">PM approved / HR processing</option><option value="pending_director">Pending Director</option><option value="approved">Director completed</option><option value="rejected">Returned</option></select></div><div id="payrollReportQueue"></div><div id="payrollEmployeeDetails"><h2>Employee-wise payroll details</h2><div class="tablewrap"><table><thead><tr><th>Project</th><th>Period</th><th>Employee</th><th>Site verification</th><th>HR action</th><th>Director</th><th>Accounts</th><th>Net payable</th></tr></thead><tbody id="reportRows"></tbody></table></div></div>';
  const [rr,hr,pr]=await Promise.all([
@@ -626,12 +638,6 @@ async function handleBankBulkFile(input){
    let action='—';
    if(isHR&&!isAdmin&&['approved_by_pm','approved'].includes(m.status)&&l.hr_payment_status!=='processed'&&l.director_line_status!=='approved')action='<button class="btn primary" onclick="processPayrollLine(\''+l.id+'\',\'process\')">Process</button> <button class="btn orange" onclick="processPayrollLine(\''+l.id+'\',\'hold\')">Hold</button>';
    else if(isDirector&&!isHR&&!isAdmin&&m.status==='pending_director'&&l.director_line_status==='pending')action='Awaiting whole-payroll decision';
-   else if(l.hr_payment_status==='held')action='<span class="pill">Held — HR can process later</span>';
-   return '<tr><td>'+esc(projectName(m.project_id))+'</td><td>'+m.period_from+' – '+m.period_to+'</td><td>'+esc(l.employee_name_snapshot)+'</td><td>'+esc(l.site_verification_status||'pending')+'</td><td>'+esc(l.hr_payment_status||'pending')+' '+(isHR?action:'')+'</td><td>'+esc(l.director_line_status||'not_submitted')+'</td><td>'+esc(l.accounts_payment_status||'pending')+'</td><td>₹'+Number(l.net_amount).toFixed(2)+'</td></tr>';
-  })).join('')||'<tr><td colspan="8" class="empty">No employee payroll lines.</td></tr>';
- }
- $('reportProject').onchange=paint;$('reportStatus').onchange=paint;paint();
-}nclick="decideDirectorLine(\''+l.id+'\',\'rejected\')">Reject</button>';
    else if(l.hr_payment_status==='held')action='<span class="pill">Held — HR can process later</span>';
    return '<tr><td>'+esc(projectName(m.project_id))+'</td><td>'+m.period_from+' – '+m.period_to+'</td><td>'+esc(l.employee_name_snapshot)+'</td><td>'+esc(l.site_verification_status||'pending')+'</td><td>'+esc(l.hr_payment_status||'pending')+' '+(isHR?action:'')+'</td><td>'+esc(l.director_line_status||'not_submitted')+'</td><td>'+esc(l.accounts_payment_status||'pending')+'</td><td>₹'+Number(l.net_amount).toFixed(2)+'</td></tr>';
   })).join('')||'<tr><td colspan="8" class="empty">No employee payroll lines.</td></tr>';
