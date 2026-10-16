@@ -454,6 +454,14 @@ async function submitPayrollToDirector(id){
  try{await rpc('submit_regular_employee_muster_to_director',{p_muster_id:id});await load();renderPayrollReports();msg('Processed employee lines submitted to the Director. Held lines remain available to HR.')}
  catch(e){msg(e.message,'error')}
 }
+async function decideDirectorPayroll(id,decision){
+ const note=prompt(decision==='rejected'?'Enter reason for rejecting the entire payroll:':'Optional approval comment:');
+ if(note===null)return;
+ if(decision==='rejected'&&!note.trim()){msg('A rejection reason is required.','error');return;}
+ if(!confirm(decision==='approved'?'Approve the entire payroll and release all submitted lines to Accounts?':'Reject the entire payroll and all submitted lines?'))return;
+ try{await rpc('decide_regular_employee_muster_director',{p_muster_id:id,p_decision:decision,p_comments:note||null});await load();renderPayrollReports();msg(decision==='approved'?'Entire payroll approved. All submitted lines are ready for Accounts.':'Entire payroll rejected.');}
+ catch(e){msg(e.message,'error')}
+}
 async function decideDirectorLine(id,decision){
  const comments=prompt(decision==='rejected'?'Reason for rejecting this employee line:':'Optional Director comment:');
  if(decision==='rejected'&&!comments)return;
@@ -563,18 +571,7 @@ async function handleBankBulkFile(input){
    if(!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc))throw new Error('Row '+(i+2)+': invalid IFSC format.');
    prepared.push({employee:e,account,holder,bank:String(r['Bank Name']||''),ifsc,type:String(r['Account Type']||'personal'),reason:String(r['Change Reason']||'Bulk bank detail update')});
   }
-  preview.innerHTML='<p><b>'+prepared.length+' employee bank records ready.</b> Existing active bank links will be closed and replaced from today. Confirm only after checking the employee mapping.</p><button class="btn primary" id="confirmBankUpload">Confirm Bank Detail Update</button>';
-  $('confirmBankUpload').onclick=async()=>{
-   const btn=$('confirmBankUpload');btn.disabled=true;let done=0;
-   try{
-    for(const r of prepared){await rpc('save_regular_employee_bank_details',{p_employee_id:r.employee.id,p_account_number:r.account,p_account_holder_name:r.holder,p_bank_name:r.bank,p_ifsc_code:r.ifsc,p_account_type:r.type,p_change_reason:r.reason});done++;}
-    msg('Bank details updated for '+done+' employees.');await renderBankDetails();
-   }catch(e){msg('Update stopped after '+done+' rows. Review the completed employees before retrying. '+e.message,'error')}
-  };
- }catch(e){msg(e.message||String(e),'error')}
- finally{input.value=''}
-}
-async function renderPayrollReports(){
+  preview.innerHTML='<p><b>'+prepared.length+' employee bank records ready.</b> Existing active bank links will be closed and replaced from today. Confirm only after checkasync function renderPayrollReports(){
  $('view').innerHTML=header('Payroll Reports','Manage seven-day payroll according to your assigned role.')+
  '<div class="toolbar"><select id="reportProject"><option value="">All projects</option>'+projectOptions()+'</select><select id="reportStatus"><option value="all">All statuses</option><option value="draft">Draft / Site verification</option><option value="pending_pm">Pending Project Manager</option><option value="approved_by_pm">PM approved / HR processing</option><option value="pending_director">Pending Director</option><option value="approved">Director completed</option><option value="rejected">Returned</option></select></div><div id="payrollReportQueue"></div><div id="payrollEmployeeDetails"><h2>Employee-wise payroll details</h2><div class="tablewrap"><table><thead><tr><th>Project</th><th>Period</th><th>Employee</th><th>Site verification</th><th>HR action</th><th>Director</th><th>Accounts</th><th>Net payable</th></tr></thead><tbody id="reportRows"></tbody></table></div></div>';
  const [rr,hr,pr]=await Promise.all([
@@ -583,17 +580,23 @@ async function renderPayrollReports(){
   db.from('user_profiles').select('is_admin').eq('user_id',currentUser.id).maybeSingle()
  ]);
  if(rr.error||hr.error||pr.error){msg((rr.error||hr.error||pr.error).message,'error');return;}
- const roles=rr.data||[],pmProjects=new Set(roles.filter(x=>String(x.role).toLowerCase()==='project_manager').map(x=>x.project_id)),siteProjects=new Set(roles.filter(x=>String(x.role).toLowerCase()==='site_engineer').map(x=>x.project_id));
- const isPM=pmProjects.size>0,isSite=siteProjects.size>0,isHR=(hr.data||[]).length>0,isAdmin=!!pr.data?.is_admin;
- const scoped=musters.filter(m=>isAdmin||isHR||pmProjects.has(m.project_id)||siteProjects.has(m.project_id));
- if(isPM&&!isAdmin){$('payrollEmployeeDetails').style.display='none';$('reportStatus').value='pending_pm';$('reportStatus').disabled=true;}
- if(isSite&&!isPM&&!isHR&&!isAdmin){$('payrollEmployeeDetails').style.display='none';$('reportStatus').value='draft';$('reportStatus').disabled=true;}
- function filtered(){const pid=$('reportProject').value,st=$('reportStatus').value;return scoped.filter(m=>(!pid||m.project_id===pid)&&(!isPM||isAdmin||pmProjects.has(m.project_id))&&(!isSite||isPM||isHR||isAdmin||siteProjects.has(m.project_id))&&(st==='all'||(st==='draft'?['draft','pending_site_verification','rejected'].includes(m.status):m.status===st)))}
+ const roles=rr.data||[],pmProjects=new Set(roles.filter(x=>String(x.role).toLowerCase()==='project_manager').map(x=>x.project_id)),siteProjects=new Set(roles.filter(x=>String(x.role).toLowerCase()==='site_engineer').map(x=>x.project_id)),directorProjects=new Set(roles.filter(x=>String(x.role).toLowerCase()==='director').map(x=>x.project_id));
+ const isPM=pmProjects.size>0,isSite=siteProjects.size>0,isDirector=directorProjects.size>0,isHR=(hr.data||[]).length>0,isAdmin=!!pr.data?.is_admin;
+ const scoped=musters.filter(m=>isAdmin||isHR||pmProjects.has(m.project_id)||siteProjects.has(m.project_id)||directorProjects.has(m.project_id));
+ if(isPM&&!isAdmin&&!isHR&&!isDirector){$('payrollEmployeeDetails').style.display='none';$('reportStatus').value='pending_pm';$('reportStatus').disabled=true;}
+ if(isSite&&!isPM&&!isHR&&!isAdmin&&!isDirector){$('payrollEmployeeDetails').style.display='none';$('reportStatus').value='draft';$('reportStatus').disabled=true;}
+ if(isDirector&&!isHR&&!isAdmin){$('payrollEmployeeDetails').style.display='none';$('reportStatus').value='pending_director';$('reportStatus').disabled=true;}
+ function filtered(){const pid=$('reportProject').value,st=$('reportStatus').value;return scoped.filter(m=>(!pid||m.project_id===pid)&&(!isPM||isAdmin||isHR||isDirector||pmProjects.has(m.project_id))&&(!isSite||isPM||isHR||isAdmin||isDirector||siteProjects.has(m.project_id))&&(!isDirector||isHR||isAdmin||directorProjects.has(m.project_id))&&(st==='all'||(st==='draft'?['draft','pending_site_verification','rejected'].includes(m.status):m.status===st)))}
  function paint(){
   const ms=filtered();
   $('payrollReportQueue').innerHTML=ms.map(m=>{
    const lines=musterLines.filter(l=>l.muster_id===m.id),verified=lines.filter(l=>l.site_verification_status==='verified').length,processed=lines.filter(l=>l.hr_payment_status==='processed').length,held=lines.filter(l=>l.hr_payment_status==='held').length,allVerified=lines.length>0&&verified===lines.length;
    let actions='';
+   if(isDirector&&!isHR&&!isAdmin){
+    const pending=lines.filter(l=>l.director_line_status==='pending').length;
+    actions=m.status==='pending_director'?'<button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">View Payroll</button> <button class="btn primary" onclick="decideDirectorPayroll(\''+m.id+'\',\'approved\')">Approve Entire Payroll</button> <button class="btn orange" onclick="decideDirectorPayroll(\''+m.id+'\',\'rejected\')">Reject Entire Payroll</button>':'<button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">View Payroll</button> <span class="pill">'+(m.status==='approved'?'Approved ✓':esc(m.status))+'</span>';
+    return '<div class="panel"><div class="heading"><div><b>'+esc(projectName(m.project_id))+'</b><div class="muted">'+m.period_from+' to '+m.period_to+' · '+lines.length+' employees</div></div><span class="pill">'+esc(m.status)+'</span></div><div class="muted">Awaiting Director decision: '+pending+' lines · Total payable: ₹'+lines.reduce((s,l)=>s+Number(l.net_amount||0),0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})+'</div><div class="actions">'+actions+'</div></div>';
+   }
    if(isPM&&!isAdmin){
     const approved=['approved_by_pm','approved','pending_director'].includes(m.status);
     actions=m.status==='pending_pm'?'<button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">View</button> <button class="btn primary" onclick="decidePayrollReport(\''+m.id+'\',\'approved\')">Approve</button>':'<button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">View</button> <span class="pill" style="background:#e5f5e8;color:#218447">Approved ✓</span>';
@@ -615,11 +618,17 @@ async function renderPayrollReports(){
    }
    return '<div class="panel"><div class="heading"><div><b>'+esc(projectName(m.project_id))+'</b><div class="muted">'+m.period_from+' to '+m.period_to+' · '+lines.length+' employees</div></div><span class="pill">'+esc(m.status)+'</span></div><div class="muted">Site verified: '+verified+'/'+lines.length+' · HR processed: '+processed+' · Held: '+held+'</div><div class="actions">'+actions+'</div></div>';
   }).join('')||'<p class="empty">No payroll reports match this filter.</p>';
-  if(isPM||isSite&&!isHR&&!isAdmin){return;}
+  if(isPM||isSite&&!isHR&&!isAdmin||isDirector&&!isHR&&!isAdmin){return;}
   $('reportRows').innerHTML=ms.flatMap(m=>musterLines.filter(l=>l.muster_id===m.id).map(l=>{
    let action='—';
    if(isHR&&!isAdmin&&['approved_by_pm','approved'].includes(m.status)&&l.hr_payment_status!=='processed'&&l.director_line_status!=='approved')action='<button class="btn primary" onclick="processPayrollLine(\''+l.id+'\',\'process\')">Process</button> <button class="btn orange" onclick="processPayrollLine(\''+l.id+'\',\'hold\')">Hold</button>';
-   else if(m.status==='pending_director'&&l.director_line_status==='pending')action='<button class="btn primary" onclick="decideDirectorLine(\''+l.id+'\',\'approved\')">Director Approve</button> <button class="btn orange" onclick="decideDirectorLine(\''+l.id+'\',\'rejected\')">Reject</button>';
+   else if(isDirector&&!isHR&&!isAdmin&&m.status==='pending_director'&&l.director_line_status==='pending')action='Awaiting whole-payroll decision';
+   else if(l.hr_payment_status==='held')action='<span class="pill">Held — HR can process later</span>';
+   return '<tr><td>'+esc(projectName(m.project_id))+'</td><td>'+m.period_from+' – '+m.period_to+'</td><td>'+esc(l.employee_name_snapshot)+'</td><td>'+esc(l.site_verification_status||'pending')+'</td><td>'+esc(l.hr_payment_status||'pending')+' '+(isHR?action:'')+'</td><td>'+esc(l.director_line_status||'not_submitted')+'</td><td>'+esc(l.accounts_payment_status||'pending')+'</td><td>₹'+Number(l.net_amount).toFixed(2)+'</td></tr>';
+  })).join('')||'<tr><td colspan="8" class="empty">No employee payroll lines.</td></tr>';
+ }
+ $('reportProject').onchange=paint;$('reportStatus').onchange=paint;paint();
+}nclick="decideDirectorLine(\''+l.id+'\',\'rejected\')">Reject</button>';
    else if(l.hr_payment_status==='held')action='<span class="pill">Held — HR can process later</span>';
    return '<tr><td>'+esc(projectName(m.project_id))+'</td><td>'+m.period_from+' – '+m.period_to+'</td><td>'+esc(l.employee_name_snapshot)+'</td><td>'+esc(l.site_verification_status||'pending')+'</td><td>'+esc(l.hr_payment_status||'pending')+' '+(isHR?action:'')+'</td><td>'+esc(l.director_line_status||'not_submitted')+'</td><td>'+esc(l.accounts_payment_status||'pending')+'</td><td>₹'+Number(l.net_amount).toFixed(2)+'</td></tr>';
   })).join('')||'<tr><td colspan="8" class="empty">No employee payroll lines.</td></tr>';
