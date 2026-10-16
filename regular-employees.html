@@ -426,8 +426,8 @@ async function decidePayrollReport(id,decision){
 }
 async function renderHRProcessingSheet(musterId){
  const m=musters.find(x=>x.id===musterId);if(!m)return;
- if(!['approved_by_pm','approved','pending_director'].includes(m.status)){msg('HR processing is available only after PM approval.','error');return;}
- const reprocessHeld=m.status==='pending_director'||(m.status==='approved'&&musterLines.some(l=>l.muster_id===musterId&&l.hr_payment_status==='held'));
+ if(!['approved_by_pm','approved','pending_director','paid','partially_paid'].includes(m.status)){msg('HR processing is available only after PM approval.','error');return;}
+ const reprocessHeld=['pending_director','paid','partially_paid'].includes(m.status)||(m.status==='approved'&&musterLines.some(l=>l.muster_id===musterId&&l.hr_payment_status==='held'));
  const lines=musterLines.filter(l=>l.muster_id===musterId);
  const bulkEligible=reprocessHeld?lines.filter(l=>l.hr_payment_status==='held'&&!['pending','approved'].includes(l.director_line_status||'not_submitted')).length:lines.filter(l=>!['processed','held'].includes(l.hr_payment_status||'pending')&&!['pending','approved'].includes(l.director_line_status||'not_submitted')).length;
  $('view').innerHTML=header(reprocessHeld?'Process Held Payments':'HR Payroll Processing',reprocessHeld?'Review the held employee lines and Process them for Director submission.':'Review each employee’s payable amount, then Process or Hold each line.')+
@@ -437,7 +437,7 @@ async function renderHRProcessingSheet(musterId){
 }
 async function processAllPayrollLines(musterId){
  const lines=musterLines.filter(l=>l.muster_id===musterId);
- const m=musters.find(x=>x.id===musterId);const reprocessHeld=m?.status==='pending_director'||(m?.status==='approved'&&lines.some(l=>l.hr_payment_status==='held'));const count=reprocessHeld?lines.filter(l=>l.hr_payment_status==='held'&&!['pending','approved'].includes(l.director_line_status||'not_submitted')).length:lines.filter(l=>!['processed','held'].includes(l.hr_payment_status||'pending')&&!['pending','approved'].includes(l.director_line_status||'not_submitted')).length;
+ const m=musters.find(x=>x.id===musterId);const reprocessHeld=['pending_director','paid','partially_paid'].includes(m?.status)||(m?.status==='approved'&&lines.some(l=>l.hr_payment_status==='held'));const count=reprocessHeld?lines.filter(l=>l.hr_payment_status==='held'&&!['pending','approved'].includes(l.director_line_status||'not_submitted')).length:lines.filter(l=>!['processed','held'].includes(l.hr_payment_status||'pending')&&!['pending','approved'].includes(l.director_line_status||'not_submitted')).length;
  if(!count){msg('No eligible employee lines available for bulk processing.','error');return;}
  if(!confirm(reprocessHeld?'Process all '+count+' held employee lines for Director submission?':'Process all '+count+' pending employee lines? Existing Held and already processed lines will remain unchanged.'))return;
  try{
@@ -652,9 +652,9 @@ async function renderPayrollReports(){
     if(['draft','pending_site_verification','rejected'].includes(m.status))actions+=' <button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">Edit Payroll</button>';
     if(['draft','pending_site_verification','rejected'].includes(m.status))actions+=allVerified?' <span class="pill">Site verification complete</span>':' <span class="pill">Awaiting Site Verification ('+verified+'/'+lines.length+')</span>';
     if(['approved_by_pm','approved'].includes(m.status))actions+=' <button class="btn primary" onclick="renderHRProcessingSheet(\''+m.id+'\')">Process Payroll</button>';
-    if(m.status==='pending_director'&&held>0)actions+=' <button class="btn primary" onclick="renderHRProcessingSheet(\''+m.id+'\')">Process Held Payments ('+held+')</button>';
-    if(m.status==='approved'&&held>0)actions+=' <button class="btn primary" onclick="renderHRProcessingSheet(\''+m.id+'\')">Process Held Payments ('+held+')</button>';
-    if(['approved_by_pm','approved','pending_director'].includes(m.status)&&processed>0&&lines.some(l=>l.hr_payment_status==='processed'&&!['pending','approved'].includes(l.director_line_status||'not_submitted')))actions+=' <button class="btn" onclick="submitPayrollToDirector(\''+m.id+'\')">Submit Processed Lines to Director</button>';
+    if(['pending_director','paid','partially_paid'].includes(m.status)&&held>0)actions+=' <button class="btn primary" onclick="renderHRProcessingSheet(\''+m.id+'\')">Process Held Payments ('+held+')</button>';
+    
+    if(['approved_by_pm','approved','pending_director','paid','partially_paid'].includes(m.status)&&processed>0&&lines.some(l=>l.hr_payment_status==='processed'&&!['pending','approved'].includes(l.director_line_status||'not_submitted')))actions+=' <button class="btn" onclick="submitPayrollToDirector(\''+m.id+'\')">Submit Processed Lines to Director</button>';
     if(m.status==='pending_pm')actions+=' <span class="pill">Pending PM approval</span>';
    }else{
     actions='<button class="btn" onclick="renderMusterDetail(\''+m.id+'\')">Open / Print Payroll Sheet</button>';
