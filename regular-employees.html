@@ -154,7 +154,7 @@ input:focus,select:focus,.field input:focus,.field select:focus{border-color:#b5
 </style>
 </head><body>
 <div id="login"><div class="brand">CRESCENT <small>CONTRACTORS PVT. LTD.</small></div><h2>Regular Employee Management</h2><p class="muted">Sign in using your existing Crescent portal account.</p><form id="loginForm"><label>Username</label><input id="username" type="text" autocomplete="username" required><label>Password</label><input id="password" type="password" required><button type="submit" class="btn primary" style="width:100%">Sign in</button></form><div id="loginMsg" class="message"></div></div>
-<div id="app" class="shell hidden"><header class="top"><div class="top-brand"><img class="crescent-logo" src="/crescent-logo-header.png" alt="Crescent Contractors Pvt. Ltd."><span class="top-caption">REGULAR EMPLOYEE MANAGEMENT</span></div><div><span id="who" class="muted"></span> <button class="btn" id="signout">Sign out</button></div></header><div class="layout"><aside class="side"><nav class="nav"><button class="active" data-page="employees">Employee Directory</button><button data-page="attendance">Weekly Attendance</button><button data-page="advances">Advance Management</button><button data-page="musters">Weekly Muster</button><button data-page="payments">Payment Register</button><button data-page="reports">Payroll Reports</button><button data-page="projects">Project Assignments</button><button data-page="wages">Wage History</button><button data-page="codes">Activity Codes</button><button data-page="activityCost" id="activityCostNav" style="display:none">Activity Cost</button><button data-page="hr">HR Access</button><button data-page="bank">Bank Details</button></nav></aside><main><div id="message" class="message"></div><section id="view"></section></main></div></div>
+<div id="app" class="shell hidden"><header class="top"><div class="top-brand"><img class="crescent-logo" src="/crescent-logo-header.png" alt="Crescent Contractors Pvt. Ltd."><span class="top-caption">REGULAR EMPLOYEE MANAGEMENT</span></div><div><span id="who" class="muted"></span> <button class="btn" id="signout">Sign out</button></div></header><div class="layout"><aside class="side"><nav class="nav"><button class="active" data-page="employees">Employee Directory</button><button data-page="attendance">Weekly Attendance</button><button data-page="bulkAttendance" id="bulkAttendanceNav" style="display:none">Bulk Date Range Attendance</button><button data-page="advances">Advance Management</button><button data-page="musters">Weekly Muster</button><button data-page="payments">Payment Register</button><button data-page="reports">Payroll Reports</button><button data-page="projects">Project Assignments</button><button data-page="wages">Wage History</button><button data-page="codes">Activity Codes</button><button data-page="activityCost" id="activityCostNav" style="display:none">Activity Cost</button><button data-page="hr">HR Access</button><button data-page="bank">Bank Details</button></nav></aside><main><div id="message" class="message"></div><section id="view"></section></main></div></div>
 <div id="modal" class="modal"><div class="dialog"><div style="display:flex;justify-content:space-between;align-items:center"><h2 id="modalTitle">Add</h2><button class="btn" id="closeModal">✕</button></div><div id="modalBody"></div></div></div>
 <script>
 const SUPABASE_URL='https://iqltunrvlosxdxucibef.supabase.co';
@@ -185,7 +185,7 @@ function projectName(id){const p=projects.find(x=>x.id===id);return p?(p.name||p
 function projectOptions(){return projects.filter(p=>p.is_active!==false).map(p=>`<option value="${p.id}">${esc(p.name||p.project_name||p.title||p.project_title||p.id)}</option>`).join('')}
 function activeAssignment(id){return assignments.find(a=>a.employee_id===id&&a.is_active)}
 function currentWage(id){return wages.find(w=>w.employee_id===id&&!w.effective_to)||wages.find(w=>w.employee_id===id)}
-function render(){document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===page));if(page==='employees')renderEmployees();if(page==='attendance')renderAttendance();if(page==='advances')renderAdvances();if(page==='musters')renderMusters();if(page==='payments')renderPayments();if(page==='reports')renderPayrollReports();if(page==='projects')renderAssignments();if(page==='wages')renderWages();if(page==='codes')renderCodes();if(page==='activityCost')renderActivityCost();if(page==='hr')renderHR();if(page==='bank')renderBankDetails();}
+function render(){document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===page));if(page==='employees')renderEmployees();if(page==='attendance')renderAttendance();if(page==='bulkAttendance')renderBulkDateRangeAttendance();if(page==='advances')renderAdvances();if(page==='musters')renderMusters();if(page==='payments')renderPayments();if(page==='reports')renderPayrollReports();if(page==='projects')renderAssignments();if(page==='wages')renderWages();if(page==='codes')renderCodes();if(page==='activityCost')renderActivityCost();if(page==='hr')renderHR();if(page==='bank')renderBankDetails();}
 function header(title,desc,button=''){return `<div class="heading"><div><h1>${title}</h1><div class="muted">${desc}</div></div>${button}</div>`}
 function renderEmployees(){ $('view').innerHTML=header('Employee Directory','Register and maintain regular employees. Subcontractor labour records are separate.',`<div class="actions" style="margin:0;flex-wrap:wrap"><button class="btn" onclick="downloadEmployeeTemplate()">↓ Download CSV Template</button><button class="btn" onclick="document.getElementById('bulkEmployeeFile').click()">↑ Bulk Upload CSV</button><button class="btn primary" onclick="addEmployee()">+ Register Employee</button><input id="bulkEmployeeFile" type="file" accept=".csv,text/csv" style="display:none" onchange="handleBulkEmployeeFile(this)"></div>`)+`<div class="stats"><div class="stat">Total employees<strong>${employees.length}</strong></div><div class="stat">Active employees<strong>${employees.filter(e=>e.is_active).length}</strong></div><div class="stat">Inactive employees<strong>${employees.filter(e=>!e.is_active).length}</strong></div></div><div class="toolbar"><input id="empSearch" placeholder="Search employee code, name or work"><select id="empStatus"><option value="all">All employees</option><option value="active">Active</option><option value="inactive">Inactive</option></select></div><div class="tablewrap"><table><thead><tr><th>Employee Code</th><th>Employee</th><th>Work Category</th><th>Project</th><th>Daily Wage</th><th>Status</th><th>Actions</th></tr></thead><tbody id="empRows"></tbody></table></div>`;fillEmployeeRows();$('empSearch').oninput=fillEmployeeRows;$('empStatus').onchange=fillEmployeeRows;}
 function downloadEmployeeTemplate(){
@@ -326,6 +326,74 @@ function renderAttendance(){
  $('bulkAttendanceUpload').onclick=()=>$('bulkAttendanceFile').click();
  $('bulkAttendanceFile').onchange=ev=>handleBulkDailyAttendanceFile(ev.target,project.value,date.value);
  form.onsubmit=async ev=>{ev.preventDefault();const pid=project.value,dt=date.value,es=activeEmployeesForProject(pid,dt);try{for(const e of es){const val=k=>form.querySelector('[data-e="'+e.id+'"][data-k="'+k+'"]:checked')?.value??form.querySelector('[data-e="'+e.id+'"][data-k="'+k+'"]')?.value;const attendanceType=val('type');if(!attendanceType)throw new Error('Please mark attendance for '+e.employee_name);const typedActivity=(val('activity')||'').trim();const activity=typedActivity?codes.find(c=>c.project_id===pid&&c.is_active&&(typedActivity.toLowerCase()===c.activity_code.toLowerCase()||typedActivity.toLowerCase()=== (c.activity_code+' - '+c.activity_name).toLowerCase()||typedActivity.toLowerCase()===c.activity_name.toLowerCase())):null;if(typedActivity&&!activity)throw new Error('Select a valid activity code from the suggestions for '+e.employee_name);if(attendanceType!=='absent'&&!activity)throw new Error('Select an activity code for '+e.employee_name);await rpc('save_regular_employee_attendance',{p_employee_id:e.id,p_project_id:pid,p_attendance_date:dt,p_attendance_type:attendanceType,p_overtime_hours:Number(val('ot')||0),p_sunday_extra:new Date(dt+'T12:00:00').getDay()===0?Number(val('sun')||0):0,p_remarks:val('remarks')||null,p_activity_code_id:activity?.id||null,p_other_amount:Number(val('other')||0)})}await load();render();msg('Attendance saved for '+es.length+' employees.')}catch(err){msg(err.message,'error')}}
+}
+
+
+async function renderBulkDateRangeAttendance(){
+ const {data:roleRows,error:roleError}=await db.from('project_assignments').select('project_id,role,is_active').eq('user_id',currentUser.id).eq('is_active',true);
+ if(roleError){msg(roleError.message,'error');return}
+ const siteProjects=(roleRows||[]).filter(x=>String(x.role).toLowerCase()==='site_engineer').map(x=>x.project_id);
+ if(!siteProjects.length){page='attendance';render();msg('This screen is available only to Site Engineers.','error');return}
+ const allowedProjects=projects.filter(p=>siteProjects.includes(p.id)&&p.is_active!==false);
+ if(!allowedProjects.length){$('view').innerHTML=header('Bulk Date Range Attendance','No active projects are assigned to your Site Engineer account.');return}
+ const end=dateToday(),start=new Date(Date.now()-6*86400000).toISOString().slice(0,10);
+ $('view').innerHTML=header('Bulk Date Range Attendance','Mark attendance and overtime for multiple employees across a date range. This screen is restricted to Site Engineers.')+
+ '<div class="panel"><div class="formgrid"><div class="field"><label>Project *</label><select id="bulkRangeProject">'+allowedProjects.map(p=>'<option value="'+p.id+'">'+esc(p.name||p.project_name||p.title||p.project_title||p.id)+'</option>').join('')+'</select></div><div class="field"><label>Start Date *</label><input id="bulkRangeStart" type="date" value="'+start+'"></div><div class="field"><label>End Date *</label><input id="bulkRangeEnd" type="date" value="'+end+'"></div></div><div class="notice">Each date cell has separate Attendance, OT Hours and Activity Code fields. Enter overtime hours for that employee on that specific date (for example, 2 or 2.5). Leave OT as 0 when there is no overtime. Existing attendance is loaded so you can review or correct it.</div><div class="toolbar"><button type="button" class="btn primary" id="loadBulkRange">Load Attendance Grid</button><span class="muted" id="bulkRangeSummary"></span></div><div id="bulkRangeGrid" class="tablewrap"></div><div class="actions"><button type="button" class="btn primary" id="saveBulkRange">Save Date Range Attendance</button></div><div id="bulkRangeResult"></div></div>';
+ const projectEl=$('bulkRangeProject'),startEl=$('bulkRangeStart'),endEl=$('bulkRangeEnd'),gridEl=$('bulkRangeGrid'),resultEl=$('bulkRangeResult');
+ let dates=[],people=[],existing=new Map(),projectCodes=[];
+ const key=(eid,dt)=>eid+'|'+dt;
+ const makeDateList=(a,b)=>{const out=[];for(let d=new Date(a+'T12:00:00');d<=new Date(b+'T12:00:00');d.setDate(d.getDate()+1))out.push(d.toISOString().slice(0,10));return out};
+ async function loadGrid(){
+  const pid=projectEl.value,a=startEl.value,b=endEl.value;
+  resultEl.innerHTML='';gridEl.innerHTML='<p class="empty">Loading attendance…</p>';
+  if(!a||!b||a>b){gridEl.innerHTML='<p class="message show error">Select a valid date range.</p>';return}
+  dates=makeDateList(a,b);if(dates.length>31){gridEl.innerHTML='<p class="message show error">Please select a maximum range of 31 days.</p>';return}
+  people=employees.filter(e=>e.is_active&&assignments.some(x=>x.employee_id===e.id&&x.project_id===pid&&x.effective_from<=b&&(!x.effective_to||x.effective_to>=a)));
+  projectCodes=codes.filter(c=>c.project_id===pid&&c.is_active).sort((x,y)=>String(x.activity_code).localeCompare(String(y.activity_code),undefined,{numeric:true}));
+  if(!people.length){gridEl.innerHTML='<p class="empty">No active employees are assigned to this project during the selected range.</p>';return}
+  const {data,error}=await db.from('regular_employee_attendance').select('*').eq('project_id',pid).gte('attendance_date',a).lte('attendance_date',b);
+  if(error){gridEl.innerHTML='<p class="message show error">'+esc(error.message)+'</p>';return}
+  existing=new Map((data||[]).map(x=>[key(x.employee_id,x.attendance_date),x]));
+  const dateHeaders=dates.map(dt=>'<th>'+new Date(dt+'T12:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short'})+'<div class="muted">'+new Date(dt+'T12:00:00').toLocaleDateString('en-IN',{weekday:'short'})+'</div></th>').join('');
+  const rows=people.map(e=>'<tr><td style="position:sticky;left:0;background:#fff;z-index:1;min-width:180px"><b>'+esc(e.employee_name)+'</b><div class="muted">'+esc(e.employee_code)+'</div></td>'+dates.map(dt=>{
+   const old=existing.get(key(e.id,dt)),day=new Date(dt+'T12:00:00').getDay(),opts='<option value="">Attendance</option>'+[['full_day','Full Day'],['half_day','Half Day'],['absent','Absent']].map(([v,l])=>'<option value="'+v+'" '+(old?.attendance_type===v?'selected':'')+'>'+l+'</option>').join('');
+   const codeOpts='<option value="">Activity code</option>'+projectCodes.map(c=>'<option value="'+c.id+'" '+(old?.activity_code_id===c.id?'selected':'')+'>'+esc(c.activity_code+' - '+c.activity_name)+'</option>').join('');
+   return '<td style="min-width:190px;vertical-align:top"><div style="display:grid;gap:6px"><select data-bulk-e="'+e.id+'" data-bulk-d="'+dt+'" data-bulk-k="type">'+opts+'</select><label class="muted" style="font-size:10px">OT Hours</label><input data-bulk-e="'+e.id+'" data-bulk-d="'+dt+'" data-bulk-k="ot" type="number" min="0" step=".25" value="'+Number(old?.overtime_hours||0)+'" placeholder="0" style="width:100%"><select data-bulk-e="'+e.id+'" data-bulk-d="'+dt+'" data-bulk-k="activity" '+(projectCodes.length?'':'disabled')+'>'+codeOpts+'</select>'+(day===0?'<span class="muted" style="font-size:10px">Sunday</span>':'')+'</div></td>';
+  }).join('')+'</tr>').join('');
+  gridEl.innerHTML='<table style="min-width:max-content"><thead><tr><th style="position:sticky;left:0;z-index:2">Employee</th>'+dateHeaders+'</tr></thead><tbody>'+rows+'</tbody></table>';
+  $('bulkRangeSummary').textContent=people.length+' employees · '+dates.length+' dates · '+(data||[]).length+' existing entries';
+ }
+ $('loadBulkRange').onclick=loadGrid;
+ $('saveBulkRange').onclick=async()=>{
+  if(!people.length||!dates.length){msg('Load the attendance grid first.','error');return}
+  const pid=projectEl.value,updates=[];
+  for(const e of people)for(const dt of dates){
+   const get=k=>gridEl.querySelector('[data-bulk-e="'+e.id+'"][data-bulk-d="'+dt+'"][data-bulk-k="'+k+'"]');
+   const type=get('type')?.value||'',ot=Number(get('ot')?.value||0),activityId=get('activity')?.value||'',old=existing.get(key(e.id,dt));
+   if(!type){if(old)continue;continue}
+   if(!Number.isFinite(ot)||ot<0){msg('Invalid OT hours for '+e.employee_name+' on '+dt,'error');return}
+   if(type!=='absent'&&!activityId){msg('Select an activity code for '+e.employee_name+' on '+dt,'error');return}
+   const activity=projectCodes.find(c=>c.id===activityId);
+   if(activityId&&!activity){msg('Invalid activity code for '+e.employee_name+' on '+dt,'error');return}
+   const assigned=assignments.some(x=>x.employee_id===e.id&&x.project_id===pid&&x.effective_from<=dt&&(!x.effective_to||x.effective_to>=dt));
+   if(!assigned)continue;
+   if(!old&&type)updates.push({e,dt,type,ot,activityId,old:null});
+   else if(old&&(old.attendance_type!==type||Number(old.overtime_hours||0)!==ot||(old.activity_code_id||'')!==activityId))updates.push({e,dt,type,ot,activityId,old});
+  }
+  if(!updates.length){msg('No attendance changes to save.','success');return}
+  if(!confirm('Save '+updates.length+' employee-date attendance entries? Existing Sunday Extra, Other Extra and remarks will be preserved.'))return;
+  const saveButton=$('saveBulkRange');saveButton.disabled=true;let saved=0;
+  try{
+   for(const x of updates){
+    const old=x.old,day=new Date(x.dt+'T12:00:00').getDay();
+    await rpc('save_regular_employee_attendance',{p_employee_id:x.e.id,p_project_id:pid,p_attendance_date:x.dt,p_attendance_type:x.type,p_overtime_hours:x.ot,p_sunday_extra:day===0?Number(old?.sunday_extra||0):0,p_remarks:old?.remarks||null,p_activity_code_id:x.activityId||null,p_other_amount:Number(old?.other_amount||0)});
+    saved++;
+   }
+   await load();await loadGrid();resultEl.innerHTML='<p class="message show success">Saved '+saved+' attendance entries successfully.</p>';
+  }catch(err){resultEl.innerHTML='<p class="message show error">Saved '+saved+' of '+updates.length+' entries before the error: '+esc(err.message||String(err))+'. Review the grid before retrying.</p>'}
+  finally{saveButton.disabled=false}
+ };
+ await loadGrid();
 }
 
 function downloadDailyAttendanceTemplate(projectId,dateValue){
@@ -739,6 +807,6 @@ async function renderPayrollReports(){
 }
 async function recordMusterPayment(id){const m=musters.find(x=>x.id===id);const payment_date=prompt('Payment date (YYYY-MM-DD)',dateToday());if(!payment_date)return;const payment_method=prompt('Payment method (Bank transfer / Cash / UPI):','Bank transfer');if(!payment_method)return;const reference_number=prompt('Payment reference / UTR (optional):')||null;try{await rpc('record_regular_employee_muster_payment',{p_muster_id:id,p_payment_date:payment_date,p_amount:Number(m.total_net),p_payment_method:payment_method,p_reference_number:reference_number,p_remarks:null});await load();renderPayments();msg('Payment recorded.')}catch(e){msg(e.message,'error')}}
 
-async function boot(){const {data,error}=await db.auth.getSession();if(error||!data.session){$('login').classList.remove('hidden');$('app').classList.add('hidden');return}currentUser=data.session.user;$('who').textContent=currentUser.email;$('login').classList.add('hidden');$('app').classList.remove('hidden');try{await load();const [{data:hrAccess},{data:profile}]=await Promise.all([db.from('regular_employee_hr_users').select('user_id').eq('user_id',currentUser.id).eq('is_active',true).maybeSingle(),db.from('user_profiles').select('is_admin').eq('user_id',currentUser.id).maybeSingle()]);const costNav=$('activityCostNav');if(costNav)costNav.style.display=(hrAccess||profile?.is_admin)?'block':'none';render()}catch(e){msg('Could not load module data: '+e.message,'error')}}
+async function boot(){const {data,error}=await db.auth.getSession();if(error||!data.session){$('login').classList.remove('hidden');$('app').classList.add('hidden');return}currentUser=data.session.user;$('who').textContent=currentUser.email;$('login').classList.add('hidden');$('app').classList.remove('hidden');try{await load();const [{data:hrAccess},{data:profile},{data:siteRoles}]=await Promise.all([db.from('regular_employee_hr_users').select('user_id').eq('user_id',currentUser.id).eq('is_active',true).maybeSingle(),db.from('user_profiles').select('is_admin').eq('user_id',currentUser.id).maybeSingle(),db.from('project_assignments').select('project_id,role,is_active').eq('user_id',currentUser.id).eq('is_active',true)]);const costNav=$('activityCostNav');if(costNav)costNav.style.display=(hrAccess||profile?.is_admin)?'block':'none';const bulkNav=$('bulkAttendanceNav');if(bulkNav)bulkNav.style.display=(siteRoles||[]).some(x=>String(x.role).toLowerCase()==='site_engineer')?'block':'none';render()}catch(e){msg('Could not load module data: '+e.message,'error')}}
 boot();
 </script></body></html>
