@@ -337,12 +337,15 @@ async function renderBulkDateRangeAttendance(){
  const allowedProjects=projects.filter(p=>siteProjects.includes(p.id)&&p.is_active!==false);
  if(!allowedProjects.length){$('view').innerHTML=header('Bulk Date Range Attendance','No active projects are assigned to your Site Engineer account.');return}
  const end=dateToday(),start=new Date(Date.now()-6*86400000).toISOString().slice(0,10);
- $('view').innerHTML=header('Bulk Date Range Attendance','Mark attendance and overtime for multiple employees across a date range. This screen is restricted to Site Engineers.')+
- '<div class="panel"><div class="formgrid"><div class="field"><label>Project *</label><select id="bulkRangeProject">'+allowedProjects.map(p=>'<option value="'+p.id+'">'+esc(p.name||p.project_name||p.title||p.project_title||p.id)+'</option>').join('')+'</select></div><div class="field"><label>Start Date *</label><input id="bulkRangeStart" type="date" value="'+start+'"></div><div class="field"><label>End Date *</label><input id="bulkRangeEnd" type="date" value="'+end+'"></div></div><div class="notice">Each date cell has separate Attendance, OT Hours and Activity Code fields. Enter overtime hours for that employee on that specific date (for example, 2 or 2.5). Leave OT as 0 when there is no overtime. Existing attendance is loaded so you can review or correct it.</div><div class="toolbar"><button type="button" class="btn primary" id="loadBulkRange">Load Attendance Grid</button><span class="muted" id="bulkRangeSummary"></span></div><div id="bulkRangeGrid" class="tablewrap"></div><div class="actions"><button type="button" class="btn primary" id="saveBulkRange">Save Date Range Attendance</button></div><div id="bulkRangeResult"></div></div>';
+ $('view').innerHTML=header('Bulk Date Range Attendance','Tap once for Present, twice for Absent and three times for Half Day. OT is entered on normal working days; Sunday Extra is entered separately on Sundays.')+
+ '<div class="panel"><div class="formgrid"><div class="field"><label>Project *</label><select id="bulkRangeProject">'+allowedProjects.map(p=>'<option value="'+p.id+'">'+esc(p.name||p.project_name||p.title||p.project_title||p.id)+'</option>').join('')+'</select></div><div class="field"><label>Start Date *</label><input id="bulkRangeStart" type="date" value="'+start+'"></div><div class="field"><label>End Date *</label><input id="bulkRangeEnd" type="date" value="'+end+'"></div></div><div class="notice"><b>Attendance:</b> 1st tap Present · 2nd tap Absent · 3rd tap Half Day. <b>Normal days:</b> enter OT hours and select Activity Code. <b>Sundays:</b> when Present, enter Sunday Extra; OT and Activity Code are not required.</div><div class="toolbar"><button type="button" class="btn primary" id="loadBulkRange">Load Attendance Grid</button><span class="muted" id="bulkRangeSummary"></span></div><div id="bulkRangeGrid" class="tablewrap"></div><div class="actions"><button type="button" class="btn primary" id="saveBulkRange">Save Date Range Attendance</button></div><div id="bulkRangeResult"></div></div>';
  const projectEl=$('bulkRangeProject'),startEl=$('bulkRangeStart'),endEl=$('bulkRangeEnd'),gridEl=$('bulkRangeGrid'),resultEl=$('bulkRangeResult');
  let dates=[],people=[],existing=new Map(),projectCodes=[];
  const key=(eid,dt)=>eid+'|'+dt;
  const makeDateList=(a,b)=>{const out=[];for(let d=new Date(a+'T12:00:00');d<=new Date(b+'T12:00:00');d.setDate(d.getDate()+1))out.push(d.toISOString().slice(0,10));return out};
+ const labels={full_day:'Present',absent:'Absent',half_day:'Half Day'};
+ const nextStatus={full_day:'absent',absent:'half_day',half_day:'full_day'};
+ const statusButton=(eid,dt,type)=>'<button type="button" class="bulk-att-btn '+(type||'unmarked')+'" data-bulk-e="'+eid+'" data-bulk-d="'+dt+'" data-bulk-k="status" data-status="'+(type||'')+'" style="width:100%;min-width:112px;padding:11px 8px;border:1px solid '+(type==='full_day'?'#16a34a':type==='absent'?'#dc2626':type==='half_day'?'#d97706':'#cbd5e1')+';border-radius:10px;background:'+(type==='full_day'?'#dcfce7':type==='absent'?'#fee2e2':type==='half_day'?'#fef3c7':'#f8fafc')+';color:'+(type==='full_day'?'#166534':type==='absent'?'#991b1b':type==='half_day'?'#92400e':'#475569')+';font-weight:700;cursor:pointer">'+(type?labels[type]:'Tap to mark')+'</button>';
  async function loadGrid(){
   const pid=projectEl.value,a=startEl.value,b=endEl.value;
   resultEl.innerHTML='';gridEl.innerHTML='<p class="empty">Loading attendance…</p>';
@@ -354,39 +357,45 @@ async function renderBulkDateRangeAttendance(){
   const {data,error}=await db.from('regular_employee_attendance').select('*').eq('project_id',pid).gte('attendance_date',a).lte('attendance_date',b);
   if(error){gridEl.innerHTML='<p class="message show error">'+esc(error.message)+'</p>';return}
   existing=new Map((data||[]).map(x=>[key(x.employee_id,x.attendance_date),x]));
-  const dateHeaders=dates.map(dt=>'<th>'+new Date(dt+'T12:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short'})+'<div class="muted">'+new Date(dt+'T12:00:00').toLocaleDateString('en-IN',{weekday:'short'})+'</div></th>').join('');
-  const rows=people.map(e=>'<tr><td style="position:sticky;left:0;background:#fff;z-index:1;min-width:180px"><b>'+esc(e.employee_name)+'</b><div class="muted">'+esc(e.employee_code)+'</div></td>'+dates.map(dt=>{
-   const old=existing.get(key(e.id,dt)),day=new Date(dt+'T12:00:00').getDay(),opts='<option value="">Attendance</option>'+[['full_day','Full Day'],['half_day','Half Day'],['absent','Absent']].map(([v,l])=>'<option value="'+v+'" '+(old?.attendance_type===v?'selected':'')+'>'+l+'</option>').join('');
-   const codeOpts='<option value="">Activity code</option>'+projectCodes.map(c=>'<option value="'+c.id+'" '+(old?.activity_code_id===c.id?'selected':'')+'>'+esc(c.activity_code+' - '+c.activity_name)+'</option>').join('');
-   return '<td style="min-width:190px;vertical-align:top"><div style="display:grid;gap:6px"><select data-bulk-e="'+e.id+'" data-bulk-d="'+dt+'" data-bulk-k="type">'+opts+'</select><label class="muted" style="font-size:10px">OT Hours</label><input data-bulk-e="'+e.id+'" data-bulk-d="'+dt+'" data-bulk-k="ot" type="number" min="0" step=".25" value="'+Number(old?.overtime_hours||0)+'" placeholder="0" style="width:100%"><select data-bulk-e="'+e.id+'" data-bulk-d="'+dt+'" data-bulk-k="activity" '+(projectCodes.length?'':'disabled')+'>'+codeOpts+'</select>'+(day===0?'<span class="muted" style="font-size:10px">Sunday</span>':'')+'</div></td>';
+  const dateHeaders=dates.map(dt=>{const d=new Date(dt+'T12:00:00'),sun=d.getDay()===0;return '<th style="min-width:'+(sun?'150px':'180px')+'px;background:'+(sun?'#fff7ed':'')+'">'+d.toLocaleDateString('en-IN',{day:'2-digit',month:'short'})+'<div class="muted">'+d.toLocaleDateString('en-IN',{weekday:'short'})+(sun?' · SUNDAY':'')+'</div></th>'}).join('');
+  const rows=people.map(e=>'<tr><td style="position:sticky;left:0;background:#fff;z-index:1;min-width:160px"><b>'+esc(e.employee_name)+'</b><div class="muted">'+esc(e.employee_code)+'</div></td>'+dates.map(dt=>{
+   const old=existing.get(key(e.id,dt)),day=new Date(dt+'T12:00:00').getDay(),sun=day===0,type=old?.attendance_type||'';
+   const attendance=statusButton(e.id,dt,type);
+   const extras=sun?'<label class="muted" style="font-size:11px">Sunday Extra</label><input data-bulk-e="'+e.id+'" data-bulk-d="'+dt+'" data-bulk-k="sunday" type="number" min="0" step=".01" value="'+Number(old?.sunday_extra||0)+'" placeholder="0" style="width:100%" '+(type==='full_day'?'':'disabled')+'>':
+    '<label class="muted" style="font-size:11px">OT Hours</label><input data-bulk-e="'+e.id+'" data-bulk-d="'+dt+'" data-bulk-k="ot" type="number" min="0" step=".25" value="'+Number(old?.overtime_hours||0)+'" placeholder="0" style="width:100%"><select data-bulk-e="'+e.id+'" data-bulk-d="'+dt+'" data-bulk-k="activity" '+(projectCodes.length?'':'disabled')+'><option value="">Activity Code</option>'+projectCodes.map(c=>'<option value="'+c.id+'" '+(old?.activity_code_id===c.id?'selected':'')+'>'+esc(c.activity_code+' - '+c.activity_name)+'</option>').join('')+'</select>';
+   return '<td style="vertical-align:top;padding:10px;min-width:'+(sun?'150px':'180px')+'px"><div style="display:grid;gap:7px">'+attendance+extras+'</div></td>';
   }).join('')+'</tr>').join('');
-  gridEl.innerHTML='<table style="min-width:max-content"><thead><tr><th style="position:sticky;left:0;z-index:2">Employee</th>'+dateHeaders+'</tr></thead><tbody>'+rows+'</tbody></table>';
+  gridEl.innerHTML='<table style="min-width:max-content"><thead><tr><th style="position:sticky;left:0;z-index:2;background:#f8fafc">Employee</th>'+dateHeaders+'</tr></thead><tbody>'+rows+'</tbody></table>';
   $('bulkRangeSummary').textContent=people.length+' employees · '+dates.length+' dates · '+(data||[]).length+' existing entries';
  }
+ gridEl.addEventListener('click',ev=>{
+  const btn=ev.target.closest('[data-bulk-k="status"]');if(!btn)return;
+  const current=btn.dataset.status||'',next=current?nextStatus[current]:'full_day';
+  btn.outerHTML=statusButton(btn.dataset.bulkE,btn.dataset.bulkD,next);
+  const sunday=new Date(btn.dataset.bulkD+'T12:00:00').getDay()===0;
+  if(sunday){const input=gridEl.querySelector('[data-bulk-e="'+btn.dataset.bulkE+'"][data-bulk-d="'+btn.dataset.bulkD+'"][data-bulk-k="sunday"]');if(input)input.disabled=next!=='full_day';}
+ });
  $('loadBulkRange').onclick=loadGrid;
  $('saveBulkRange').onclick=async()=>{
   if(!people.length||!dates.length){msg('Load the attendance grid first.','error');return}
   const pid=projectEl.value,updates=[];
   for(const e of people)for(const dt of dates){
    const get=k=>gridEl.querySelector('[data-bulk-e="'+e.id+'"][data-bulk-d="'+dt+'"][data-bulk-k="'+k+'"]');
-   const type=get('type')?.value||'',ot=Number(get('ot')?.value||0),activityId=get('activity')?.value||'',old=existing.get(key(e.id,dt));
-   if(!type){if(old)continue;continue}
-   if(!Number.isFinite(ot)||ot<0){msg('Invalid OT hours for '+e.employee_name+' on '+dt,'error');return}
-   if(type!=='absent'&&!activityId){msg('Select an activity code for '+e.employee_name+' on '+dt,'error');return}
-   const activity=projectCodes.find(c=>c.id===activityId);
-   if(activityId&&!activity){msg('Invalid activity code for '+e.employee_name+' on '+dt,'error');return}
+   const status=get('status'),type=status?.dataset.status||'',old=existing.get(key(e.id,dt)),sun=new Date(dt+'T12:00:00').getDay()===0;
+   if(!type)continue;
+   const ot=sun?0:Number(get('ot')?.value||0),sundayExtra=sun?Number(get('sunday')?.value||0):0,activityId=sun?'':(get('activity')?.value||'');
+   if(!Number.isFinite(ot)||ot<0||!Number.isFinite(sundayExtra)||sundayExtra<0){msg('Enter valid non-negative OT/Sunday Extra values for '+e.employee_name+' on '+dt,'error');return}
+   if(!sun&&type!=='absent'&&!activityId){msg('Select an Activity Code for '+e.employee_name+' on '+dt,'error');return}
    const assigned=assignments.some(x=>x.employee_id===e.id&&x.project_id===pid&&x.effective_from<=dt&&(!x.effective_to||x.effective_to>=dt));
    if(!assigned)continue;
-   if(!old&&type)updates.push({e,dt,type,ot,activityId,old:null});
-   else if(old&&(old.attendance_type!==type||Number(old.overtime_hours||0)!==ot||(old.activity_code_id||'')!==activityId))updates.push({e,dt,type,ot,activityId,old});
+   if(!old||old.attendance_type!==type||Number(old.overtime_hours||0)!==ot||Number(old.sunday_extra||0)!==sundayExtra||(old.activity_code_id||'')!==activityId)updates.push({e,dt,type,ot,sundayExtra,activityId,old});
   }
   if(!updates.length){msg('No attendance changes to save.','success');return}
-  if(!confirm('Save '+updates.length+' employee-date attendance entries? Existing Sunday Extra, Other Extra and remarks will be preserved.'))return;
+  if(!confirm('Save '+updates.length+' employee-date attendance entries?'))return;
   const saveButton=$('saveBulkRange');saveButton.disabled=true;let saved=0;
   try{
    for(const x of updates){
-    const old=x.old,day=new Date(x.dt+'T12:00:00').getDay();
-    await rpc('save_regular_employee_attendance',{p_employee_id:x.e.id,p_project_id:pid,p_attendance_date:x.dt,p_attendance_type:x.type,p_overtime_hours:x.ot,p_sunday_extra:day===0?Number(old?.sunday_extra||0):0,p_remarks:old?.remarks||null,p_activity_code_id:x.activityId||null,p_other_amount:Number(old?.other_amount||0)});
+    await rpc('save_regular_employee_attendance',{p_employee_id:x.e.id,p_project_id:pid,p_attendance_date:x.dt,p_attendance_type:x.type,p_overtime_hours:x.ot,p_sunday_extra:x.sundayExtra,p_remarks:x.old?.remarks||null,p_activity_code_id:x.activityId||null,p_other_amount:Number(x.old?.other_amount||0)});
     saved++;
    }
    await load();await loadGrid();resultEl.innerHTML='<p class="message show success">Saved '+saved+' attendance entries successfully.</p>';
@@ -395,7 +404,6 @@ async function renderBulkDateRangeAttendance(){
  };
  await loadGrid();
 }
-
 function downloadDailyAttendanceTemplate(projectId,dateValue){
  if(!projectId||!dateValue){msg('Select a project and attendance date first.','error');return}
  if(!window.XLSX){msg('Excel support is not available. Refresh the page and try again.','error');return}
