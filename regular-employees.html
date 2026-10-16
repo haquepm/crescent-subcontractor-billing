@@ -486,16 +486,16 @@ async function renderPayments(){
   const batches=[...new Map(visibleRows.filter(r=>r.muster_id===m.id).map(r=>[r.batch_id,r])).values()];
   return '<div class="panel"><div class="heading"><div><b>'+esc(projectName(m.project_id))+'</b><div class="muted">'+m.period_from+' to '+m.period_to+'</div></div></div><p>Employees ready for transfer: '+ready+'</p>'+(ready?'<button class="btn primary" onclick="downloadEmployeeBankTransfer(&quot;'+m.id+'&quot;)">Generate Bank Transfer Sheet</button>':'<span class="pill">No new payments ready</span>')+(batches.length?'<div class="toolbar"><b>Previously generated sheets:</b>'+batches.map(x=>'<button class="btn" onclick="downloadExistingBankTransfer(&quot;'+x.batch_id+'&quot;)">Download again · '+esc(x.value_date||'Batch')+'</button>').join('')+'</div>':'')+'</div>';
  }).join('')||'<p class="empty">No Director-approved payroll reports are ready for bank transfer.</p>')+
- '<h2>Employee Payment History</h2><div class="tablewrap"><table><thead><tr><th>Employee</th><th>Project</th><th>Payroll Period</th><th>Amount Transferred</th><th>Transfer Date</th><th>Status</th><th>UTR / Reference</th><th>Action</th></tr></thead><tbody>'+
+ '<h2>Payment Register – Employee-wise Transfer History</h2><p class="muted">Each completed transfer is recorded separately with the employee, actual amount and date of completion.</p><div class="tablewrap"><table><thead><tr><th>Employee</th><th>Project</th><th>Payroll Period</th><th>Amount Transferred</th><th>Transfer Date</th><th>Status</th><th>UTR / Reference</th><th>Action</th></tr></thead><tbody>'+
  (visibleRows.map(r=>{
   const m=musters.find(x=>x.id===r.muster_id),l=musterLines.find(x=>x.id===r.muster_line_id),paid=r.payment_status==='paid';
-  return '<tr><td>'+esc(r.credit_remarks||l?.employee_name_snapshot||r.beneficiary_name||'—')+'</td><td>'+esc(projectName(m?.project_id||''))+'</td><td>'+esc((m?.period_from||'')+' – '+(m?.period_to||''))+'</td><td>₹'+Number(r.transaction_amount||0).toFixed(2)+'</td><td>'+esc(r.paid_at?new Date(r.paid_at).toLocaleDateString('en-IN'):r.value_date||'—')+'</td><td><span class="pill">'+(paid?'Payment Processed':'Exported / Pending')+'</span></td><td>'+esc(r.payment_reference||'—')+'</td><td>'+(paid?'<span style="color:#218447;font-weight:700">Processed ✓</span>':'<button class="btn primary" onclick="markTransferPaid(\''+r.id+'\')">Mark as Payment Processed</button>')+'</td></tr>';
+  return '<tr><td>'+esc(r.credit_remarks||l?.employee_name_snapshot||r.beneficiary_name||'—')+'</td><td>'+esc(projectName(m?.project_id||''))+'</td><td>'+esc((m?.period_from||'')+' – '+(m?.period_to||''))+'</td><td>₹'+Number(r.transaction_amount||0).toFixed(2)+'</td><td>'+esc(r.paid_at?new Date(r.paid_at).toLocaleDateString('en-IN'):r.value_date||'—')+'</td><td><span class="pill">'+(paid?'Payment Completed':'Awaiting Confirmation')+'</span></td><td>'+esc(r.payment_reference||'—')+'</td><td>'+(paid?'<span style="color:#218447;font-weight:700">Processed ✓</span>':'<button class="btn primary" onclick="markTransferPaid(\''+r.id+'\')">Mark as Payment Completed</button>')+'</td></tr>';
  }).join('')||'<tr><td colspan="8" class="empty">No employee bank transfers recorded yet.</td></tr>')+'</tbody></table></div>';
 }
 async function markTransferPaid(id){
  const reference=prompt('Enter UTR / bank transaction reference (optional):');
  if(reference===null)return;
- try{await rpc('mark_regular_employee_bank_transfer_row_paid',{p_row_id:id,p_payment_reference:reference||null});await load();await renderPayments();msg('Employee payment marked as paid.')}
+ try{await rpc('mark_regular_employee_bank_transfer_row_paid',{p_row_id:id,p_payment_reference:reference||null});await load();await renderPayments();msg('Payment completion recorded. The employee-wise Payment Register has been updated.')}
  catch(e){msg(e.message,'error')}
 }
 async function downloadEmployeeBankTransfer(musterId){
