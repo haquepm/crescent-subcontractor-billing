@@ -230,7 +230,10 @@ async function handleBulkEmployeeFile(input){
     return '';
    };
    rec.joining=normalizeJoiningDate(rec.joining);
-   for(const k of ['code','name','work','category','joining','project','wage','ot'])if(!rec[k])issues.push(aliases[k][0]+' is required');\n   const categoryKey=rec.category.toLowerCase();\n   if(!['labour muster','union muster','welder muster'].includes(categoryKey))issues.push('Muster Category must be Labour Muster, Union Muster, or Welder Muster');\n   else rec.category=categoryKey==='labour muster'?'labour':categoryKey==='union muster'?'union':'welder';
+   for(const k of ['code','name','work','category','joining','project','wage','ot'])if(!rec[k])issues.push(aliases[k][0]+' is required');
+   const categoryKey=rec.category.toLowerCase();
+   if(!['labour muster','union muster','welder muster'].includes(categoryKey))issues.push('Muster Category must be Labour Muster, Union Muster, or Welder Muster');
+   else rec.category=categoryKey==='labour muster'?'labour':categoryKey==='union muster'?'union':'welder';
    if(get('joining')&&!rec.joining)issues.push('Joining Date is not a valid date. Use YYYY-MM-DD (example: 2026-09-01), DD-MM-YYYY, or an Excel date cell.');
    const numericValue=v=>String(v??'').replace(/[,₹\s]/g,'').trim();
    rec.wage=numericValue(rec.wage);rec.ot=numericValue(rec.ot);
