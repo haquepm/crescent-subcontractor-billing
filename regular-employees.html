@@ -333,11 +333,16 @@ function renderAttendance(){
 
 
 async function renderBulkDateRangeAttendance(){
- const {data:roleRows,error:roleError}=await db.from('project_assignments').select('project_id,role,is_active').eq('user_id',currentUser.id).eq('is_active',true);
- if(roleError){msg(roleError.message,'error');return}
+ const [{data:roleRows,error:roleError},{data:hrAccess,error:hrError},{data:profile,error:profileError}]=await Promise.all([
+  db.from('project_assignments').select('project_id,role,is_active').eq('user_id',currentUser.id).eq('is_active',true),
+  db.from('regular_employee_hr_users').select('user_id').eq('user_id',currentUser.id).eq('is_active',true).maybeSingle(),
+  db.from('user_profiles').select('is_admin').eq('user_id',currentUser.id).maybeSingle()
+ ]);
+ if(roleError||hrError||profileError){msg((roleError||hrError||profileError).message,'error');return}
+ const isHR=!!hrAccess,isAdmin=!!profile?.is_admin;
  const siteProjects=(roleRows||[]).filter(x=>String(x.role).toLowerCase()==='site_engineer').map(x=>x.project_id);
- if(!siteProjects.length){page='attendance';render();msg('This screen is available only to Site Engineers.','error');return}
- const allowedProjects=projects.filter(p=>siteProjects.includes(p.id)&&p.is_active!==false);
+ if(!siteProjects.length&&!isHR&&!isAdmin){page='attendance';render();msg('This screen is available only to Site Engineers, HR or System Admin.','error');return}
+ const allowedProjects=projects.filter(p=>p.is_active!==false&&(isHR||isAdmin||siteProjects.includes(p.id)));
  if(!allowedProjects.length){$('view').innerHTML=header('Bulk Date Range Attendance','No active projects are assigned to your Site Engineer account.');return}
  const end=dateToday(),start=new Date(Date.now()-6*86400000).toISOString().slice(0,10);
  $('view').innerHTML=header('Bulk Date Range Attendance','Tap once for Present, twice for Absent and three times for Half Day. OT is entered on normal working days; Sunday Extra is entered separately on Sundays.')+
@@ -817,6 +822,6 @@ async function renderPayrollReports(){
 }
 async function recordMusterPayment(id){const m=musters.find(x=>x.id===id);const payment_date=prompt('Payment date (YYYY-MM-DD)',dateToday());if(!payment_date)return;const payment_method=prompt('Payment method (Bank transfer / Cash / UPI):','Bank transfer');if(!payment_method)return;const reference_number=prompt('Payment reference / UTR (optional):')||null;try{await rpc('record_regular_employee_muster_payment',{p_muster_id:id,p_payment_date:payment_date,p_amount:Number(m.total_net),p_payment_method:payment_method,p_reference_number:reference_number,p_remarks:null});await load();renderPayments();msg('Payment recorded.')}catch(e){msg(e.message,'error')}}
 
-async function boot(){const {data,error}=await db.auth.getSession();if(error||!data.session){$('login').classList.remove('hidden');$('app').classList.add('hidden');return}currentUser=data.session.user;$('who').textContent=currentUser.email;$('login').classList.add('hidden');$('app').classList.remove('hidden');try{await load();const [{data:hrAccess},{data:profile},{data:siteRoles}]=await Promise.all([db.from('regular_employee_hr_users').select('user_id').eq('user_id',currentUser.id).eq('is_active',true).maybeSingle(),db.from('user_profiles').select('is_admin').eq('user_id',currentUser.id).maybeSingle(),db.from('project_assignments').select('project_id,role,is_active').eq('user_id',currentUser.id).eq('is_active',true)]);siteEngineerProjectIds=(siteRoles||[]).filter(x=>String(x.role).toLowerCase()==='site_engineer').map(x=>x.project_id);isSiteEngineer=siteEngineerProjectIds.length>0;const costNav=$('activityCostNav');if(costNav)costNav.style.display=(hrAccess||profile?.is_admin)?'block':'none';const bulkNav=$('bulkAttendanceNav');if(bulkNav)bulkNav.style.display=isSiteEngineer?'block':'none';const bankNav=document.querySelector('[data-page="bank"]');if(bankNav)bankNav.style.display=(isSiteEngineer||hrAccess||profile?.is_admin)?'block':'none';render()}catch(e){msg('Could not load module data: '+e.message,'error')}}
+async function boot(){const {data,error}=await db.auth.getSession();if(error||!data.session){$('login').classList.remove('hidden');$('app').classList.add('hidden');return}currentUser=data.session.user;$('who').textContent=currentUser.email;$('login').classList.add('hidden');$('app').classList.remove('hidden');try{await load();const [{data:hrAccess},{data:profile},{data:siteRoles}]=await Promise.all([db.from('regular_employee_hr_users').select('user_id').eq('user_id',currentUser.id).eq('is_active',true).maybeSingle(),db.from('user_profiles').select('is_admin').eq('user_id',currentUser.id).maybeSingle(),db.from('project_assignments').select('project_id,role,is_active').eq('user_id',currentUser.id).eq('is_active',true)]);siteEngineerProjectIds=(siteRoles||[]).filter(x=>String(x.role).toLowerCase()==='site_engineer').map(x=>x.project_id);isSiteEngineer=siteEngineerProjectIds.length>0;const costNav=$('activityCostNav');if(costNav)costNav.style.display=(hrAccess||profile?.is_admin)?'block':'none';const bulkNav=$('bulkAttendanceNav');if(bulkNav)bulkNav.style.display=(isSiteEngineer||hrAccess||profile?.is_admin)?'block':'none';const bankNav=document.querySelector('[data-page="bank"]');if(bankNav)bankNav.style.display=(isSiteEngineer||hrAccess||profile?.is_admin)?'block':'none';render()}catch(e){msg('Could not load module data: '+e.message,'error')}}
 boot();
 </script></body></html>
