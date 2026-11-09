@@ -698,7 +698,12 @@ async function exportExistingBankTransfer(batchId){
  if(error)throw error;
  if(!data?.length)throw new Error('No rows found for this transfer batch.');
  const headers=['Transaction Type','Debit Account Number','Transaction Amount','Value Date','Beneficiary Account Number','Beneficiary Name','IFSC Code','Credit Remarks'];
- const sortedRows=[...data].sort((a,b)=>String(a.credit_remarks||a.beneficiary_name||'').localeCompare(String(b.credit_remarks||b.beneficiary_name||''),undefined,{sensitivity:'base'}));
+ const lineOrder=new Map(musterLines.map((line,index)=>[line.id,index]));
+ const sortedRows=[...data].sort((a,b)=>{
+  const ai=lineOrder.has(a.muster_line_id)?lineOrder.get(a.muster_line_id):Number.MAX_SAFE_INTEGER;
+  const bi=lineOrder.has(b.muster_line_id)?lineOrder.get(b.muster_line_id):Number.MAX_SAFE_INTEGER;
+  return ai-bi||String(a.credit_remarks||a.beneficiary_name||'').localeCompare(String(b.credit_remarks||b.beneficiary_name||''),undefined,{sensitivity:'base'});
+ });
  const formatBankDate=value=>{const m=String(value||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[3]+'/'+m[2]+'/'+m[1]:String(value||'')};
  const rows=sortedRows.map(r=>[r.transaction_type,r.debit_account_number,Number(r.transaction_amount),formatBankDate(r.value_date),r.beneficiary_account_number,r.beneficiary_name,r.ifsc_code,r.credit_remarks]);
  if(headers.length!==8||rows.some(r=>r.length!==8))throw new Error('Transfer export validation failed: the sheet must contain exactly 8 columns.');
