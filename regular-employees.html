@@ -698,7 +698,9 @@ async function exportExistingBankTransfer(batchId){
  if(error)throw error;
  if(!data?.length)throw new Error('No rows found for this transfer batch.');
  const headers=['Transaction Type','Debit Account Number','Transaction Amount','Value Date','Beneficiary Account Number','Beneficiary Name','IFSC Code','Credit Remarks'];
- const rows=data.map(r=>[r.transaction_type,r.debit_account_number,Number(r.transaction_amount),r.value_date,r.beneficiary_account_number,r.beneficiary_name,r.ifsc_code,r.credit_remarks]);
+ const sortedRows=[...data].sort((a,b)=>String(a.credit_remarks||a.beneficiary_name||'').localeCompare(String(b.credit_remarks||b.beneficiary_name||''),undefined,{sensitivity:'base'}));
+ const formatBankDate=value=>{const m=String(value||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[3]+'/'+m[2]+'/'+m[1]:String(value||'')};
+ const rows=sortedRows.map(r=>[r.transaction_type,r.debit_account_number,Number(r.transaction_amount),formatBankDate(r.value_date),r.beneficiary_account_number,r.beneficiary_name,r.ifsc_code,r.credit_remarks]);
  if(headers.length!==8||rows.some(r=>r.length!==8))throw new Error('Transfer export validation failed: the sheet must contain exactly 8 columns.');
  const ws=XLSX.utils.aoa_to_sheet([headers,...rows]);ws['!cols']=[{wch:17},{wch:22},{wch:18},{wch:14},{wch:24},{wch:28},{wch:16},{wch:30}];
  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Bank Transfer');
@@ -825,13 +827,13 @@ async function renderPayrollReports(){
    return '<div class="panel"><div class="heading"><div><b>'+esc(projectName(m.project_id))+'</b><div class="muted">'+m.period_from+' to '+m.period_to+' · '+lines.length+' employees</div></div><span class="pill">'+esc(m.status)+'</span></div><div class="muted">Site verified: '+verified+'/'+lines.length+' · HR processed: '+processed+' · Held: '+held+'</div><div class="actions">'+actions+'</div></div>';
   }).join('')||'<p class="empty">No payroll reports match this filter.</p>';
   if(isPM||isSite&&!isHR&&!isAdmin||isDirector&&!isHR&&!isAdmin){return;}
-  $('reportRows').innerHTML=ms.flatMap(m=>musterLines.filter(l=>l.muster_id===m.id).map(l=>{
+  $('reportRows').innerHTML=ms.flatMap(m=>musterLines.filter(l=>l.muster_id===m.id).map(l=>({line:l,muster:m}))).sort((a,b)=>String(a.line.employee_name_snapshot||'').localeCompare(String(b.line.employee_name_snapshot||''),undefined,{sensitivity:'base'})||String(a.muster.period_from||'').localeCompare(String(b.muster.period_from||''))).map(({line:l,muster:m})=>{
    let action='—';
    if(isHR&&!isAdmin&&['approved_by_pm','approved'].includes(m.status)&&l.hr_payment_status!=='processed'&&l.director_line_status!=='approved')action='<button class="btn primary" onclick="processPayrollLine(\''+l.id+'\',\'process\')">Process</button> <button class="btn orange" onclick="processPayrollLine(\''+l.id+'\',\'hold\')">Hold</button>';
    else if(isDirector&&!isHR&&!isAdmin&&m.status==='pending_director'&&l.director_line_status==='pending')action='Awaiting whole-payroll decision';
    else if(l.hr_payment_status==='held')action='<span class="pill">Held — HR can process later</span>';
    return '<tr><td>'+esc(projectName(m.project_id))+'</td><td>'+m.period_from+' – '+m.period_to+'</td><td>'+esc(l.employee_name_snapshot)+'</td><td>'+esc(l.site_verification_status||'pending')+'</td><td>'+esc(l.hr_payment_status||'pending')+' '+(isHR?action:'')+'</td><td>'+esc(l.director_line_status||'not_submitted')+'</td><td>'+esc(l.accounts_payment_status||'pending')+'</td><td>₹'+Number(l.basic_amount||0).toFixed(2)+'</td><td>₹'+Number(l.overtime_amount||0).toFixed(2)+'</td><td>₹'+(Number(l.sunday_extra||0)+Number(l.other_amount||0)).toFixed(2)+'</td><td>₹'+Number(l.advance_deduction||0).toFixed(2)+'</td><td><b>₹'+Number(l.net_amount||0).toFixed(2)+'</b></td></tr>';
-  })).join('');
+  }).join('');
   const totals=ms.flatMap(m=>musterLines.filter(l=>l.muster_id===m.id)).reduce((s,l)=>({wages:s.wages+Number(l.basic_amount||0),ot:s.ot+Number(l.overtime_amount||0),extra:s.extra+Number(l.sunday_extra||0)+Number(l.other_amount||0),advance:s.advance+Number(l.advance_deduction||0),payable:s.payable+Number(l.net_amount||0)}),{wages:0,ot:0,extra:0,advance:0,payable:0});
   $('reportRows').innerHTML+=ms.length?'<tr style="font-weight:800;background:#f3eafa;border-top:3px solid #a64fbe"><td colspan="7" style="text-align:right">GRAND TOTAL</td><td>₹'+totals.wages.toFixed(2)+'</td><td>₹'+totals.ot.toFixed(2)+'</td><td>₹'+totals.extra.toFixed(2)+'</td><td>₹'+totals.advance.toFixed(2)+'</td><td>₹'+totals.payable.toFixed(2)+'</td></tr>':'<tr><td colspan="12" class="empty">No employee payroll lines.</td></tr>';
  }
