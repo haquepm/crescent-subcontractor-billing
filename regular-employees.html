@@ -152,7 +152,27 @@ input:focus,select:focus,.field input:focus,.field select:focus{border-color:#b5
 .nav button.active{background:linear-gradient(110deg,#a64fbe,#c47bd0);color:#fff}
 @media(max-width:800px){.top{min-height:70px;padding:9px 15px}.crescent-logo{width:min(175px,48vw);height:auto;max-height:44px}.top-caption{font-size:8px;letter-spacing:1.2px}}
 </style>
-</head><body>
+<style id="payroll-report-no-clipping">
+/* Payroll register: let labels and values determine their own compact widths. */
+.payroll-sheet{width:100%!important;max-width:100%!important;overflow-x:auto!important;overflow-y:visible!important}
+.payroll-sheet table{width:max-content!important;min-width:100%!important;max-width:none!important;table-layout:auto!important}
+.payroll-sheet th,.payroll-sheet td{box-sizing:border-box!important;overflow:visible!important;text-overflow:clip!important}
+.payroll-sheet th{white-space:normal!important;overflow-wrap:normal!important;word-break:normal!important;padding:8px 7px!important}
+.payroll-sheet td{white-space:nowrap!important;padding:8px 7px!important}
+.payroll-sheet th:nth-child(2),.payroll-sheet td:nth-child(2){width:auto!important;min-width:155px!important;max-width:none!important;white-space:normal!important}
+.payroll-sheet th:nth-child(3),.payroll-sheet td:nth-child(3){width:auto!important;min-width:145px!important;max-width:none!important;white-space:normal!important;overflow-wrap:break-word!important}
+.payroll-sheet th:nth-child(4),.payroll-sheet td:nth-child(4),.payroll-sheet th:nth-child(5),.payroll-sheet td:nth-child(5){width:auto!important;min-width:82px!important;max-width:none!important}
+.payroll-sheet th:nth-child(n+6):nth-child(-n+40),.payroll-sheet td:nth-child(n+6):nth-child(-n+40){min-width:42px!important;width:auto!important;padding-left:5px!important;padding-right:5px!important}
+@media print{
+ @page{size:A3 landscape;margin:8mm}
+ .payroll-sheet{overflow:visible!important;width:100%!important;max-width:none!important}
+ .payroll-sheet table{width:100%!important;min-width:0!important;max-width:none!important;table-layout:auto!important}
+ .payroll-sheet th,.payroll-sheet td{overflow:visible!important;text-overflow:clip!important;white-space:normal!important;overflow-wrap:break-word!important;padding:2px 2px!important;font-size:7.5pt!important}
+ .payroll-sheet th:nth-child(2),.payroll-sheet td:nth-child(2){width:auto!important;min-width:25mm!important;max-width:none!important}
+ .payroll-sheet th:nth-child(3),.payroll-sheet td:nth-child(3){width:auto!important;min-width:22mm!important;max-width:none!important}
+ .payroll-sheet th:nth-child(n+6):nth-child(-n+40),.payroll-sheet td:nth-child(n+6):nth-child(-n+40){min-width:7mm!important;padding:2px 1px!important}
+}
+</style></head><body>
 <div id="login"><div class="brand">CRESCENT <small>CONTRACTORS PVT. LTD.</small></div><h2>Regular Employee Management</h2><p class="muted">Sign in using your existing Crescent portal account.</p><form id="loginForm"><label>Username</label><input id="username" type="text" autocomplete="username" required><label>Password</label><input id="password" type="password" required><button type="submit" class="btn primary" style="width:100%">Sign in</button></form><div id="loginMsg" class="message"></div></div>
 <div id="app" class="shell hidden"><header class="top"><div class="top-brand"><img class="crescent-logo" src="/crescent-logo-header.png" alt="Crescent Contractors Pvt. Ltd."><span class="top-caption">REGULAR EMPLOYEE MANAGEMENT</span></div><div><span id="who" class="muted"></span> <button class="btn" id="signout">Sign out</button></div></header><div class="layout"><aside class="side"><nav class="nav"><button class="active" data-page="employees">Employee Directory</button><button data-page="attendance">Weekly Attendance</button><button data-page="bulkAttendance" id="bulkAttendanceNav" style="display:none">Bulk Date Range Attendance</button><button data-page="advances">Advance Management</button><button data-page="musters">Weekly Muster</button><button data-page="payments">Payment Register</button><button data-page="reports">Payroll Reports</button><button data-page="projects">Project Assignments</button><button data-page="wages">Wage History</button><button data-page="codes">Activity Codes</button><button data-page="activityCost" id="activityCostNav" style="display:none">Activity Cost</button><button data-page="hr">HR Access</button><button data-page="bank">Bank Details</button></nav></aside><main><div id="message" class="message"></div><section id="view"></section></main></div></div>
 <div id="modal" class="modal"><div class="dialog"><div style="display:flex;justify-content:space-between;align-items:center"><h2 id="modalTitle">Add</h2><button class="btn" id="closeModal">✕</button></div><div id="modalBody"></div></div></div>
